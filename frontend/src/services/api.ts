@@ -1,9 +1,10 @@
 /**
  * API client for Smart Snooker Scoring backend
- * Uses /api prefix - Vite proxy forwards to backend
+ * VITE_API_URL: production backend URL (e.g. from Vercel env)
+ * Fallback /api: local dev - Vite proxy forwards to backend
  */
 
-const API_BASE = '/api'
+const API_BASE = import.meta.env.VITE_API_URL ?? '/api'
 
 export interface GameStartRequest {
   num_players: number
