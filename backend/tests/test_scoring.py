@@ -139,6 +139,12 @@ class TestCanPotBall:
         assert valid is False
         assert "Must pot a red next" in err
 
+    def test_colour_on_break_invalid(self):
+        """Potting a colour when breaking (ball on RED, last_potted None) is invalid."""
+        valid, err = can_pot_ball("green", 15, None)
+        assert valid is False
+        assert "Must pot a red next" in err
+
     def test_yellow_first_when_reds_gone_valid(self):
         valid, err = can_pot_ball("yellow", 0, None)
         assert valid is True

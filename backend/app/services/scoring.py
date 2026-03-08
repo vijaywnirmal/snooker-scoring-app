@@ -87,7 +87,8 @@ def can_pot_ball(
         return True, None
 
     if reds_remaining > 0:
-        if last_potted_color and last_potted_color != "red":
+        # Can only pot colour after potting a red. If last_potted is None (break start) or a colour, we're on red.
+        if last_potted_color != "red":
             return False, "Must pot a red next"
         return True, None
 
