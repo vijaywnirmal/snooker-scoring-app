@@ -7,7 +7,7 @@ import { useState } from 'react'
 import type { GameState, BallType, FoulBallType, GameEvent, Player } from '../types/game'
 import { BALL_VALUES } from '../types/game'
 import { getVariant } from '../variants'
-import { activePlayers, frameLeaders, rdBarrierMet } from '../utils/gameActions'
+import { activePlayers, canQuit, canSitOut, frameLeaders, rdBarrierMet } from '../utils/gameActions'
 
 const BALLS: BallType[] = ['red', 'yellow', 'green', 'brown', 'blue', 'pink', 'black']
 
@@ -26,8 +26,12 @@ interface ScoreboardProps {
   onReplayFoul?: () => void
   /** RD: the red was attempted and missed */
   onMissRed?: () => void
-  /** Trace: end the frame; sitterId settles a tie for the highest score */
-  onEndFrame?: (sitterId?: string) => void
+  /** Trace: start a new frame with scores carried over */
+  onNewFrame?: () => void
+  /** Trace: the highest scorer sits out; sitterId settles a tie */
+  onSitOut?: (sitterId?: string) => void
+  /** Trace: one of the last two quits and loses */
+  onQuit?: (quitterId: string) => void
 }
 
 function ordinal(n: number): string {
@@ -52,10 +56,13 @@ export default function Scoreboard({
   onClearError,
   onReplayFoul,
   onMissRed,
-  onEndFrame,
+  onNewFrame,
+  onSitOut,
+  onQuit,
 }: ScoreboardProps) {
   const [showFoulModal, setShowFoulModal] = useState(false)
-  const [showFrameModal, setShowFrameModal] = useState(false)
+  const [showSitOutModal, setShowSitOutModal] = useState(false)
+  const [showQuitModal, setShowQuitModal] = useState(false)
   const currentPlayer = game.players[game.currentPlayerIndex]
   const lastEvent = game.events[game.events.length - 1]
   const variant = getVariant(game.variant)
@@ -63,6 +70,9 @@ export default function Scoreboard({
   const isTrace = game.variant === 'trace'
   const finished = game.status === 'finished'
   const locked = loading || finished
+  const cleared = !!game.tableCleared && !finished
+  // Nothing left to pot until a new frame starts
+  const scoringLocked = locked || cleared
   const fouler = game.pendingReplay ? game.players[game.pendingReplay.playerIndex] : undefined
   const winner = game.players.find((p) => p.id === game.winnerId)
 
@@ -92,10 +102,16 @@ export default function Scoreboard({
     onFoul(ball)
   }
 
-  const handleEndFrame = (sitterId?: string) => {
-    setShowFrameModal(false)
+  const handleQuit = (quitterId: string) => {
+    setShowQuitModal(false)
     onClearError?.()
-    onEndFrame?.(sitterId)
+    onQuit?.(quitterId)
+  }
+
+  const handleSitOut = (sitterId?: string) => {
+    setShowSitOutModal(false)
+    onClearError?.()
+    onSitOut?.(sitterId)
   }
 
   const playerStatus = (p: Player) => {
@@ -103,20 +119,20 @@ export default function Scoreboard({
       return `Reds ${p.redPots ?? 0}/${game.rd!.minPots} · Tries ${p.redAttempts ?? 0}/${game.rd!.minAttempts}${rdBarrierMet(game, p) ? ' ✓' : ''}`
     }
     if (isTrace && p.finishPosition) {
-      return p.sitting ? `Safe · ${ordinal(p.finishPosition)}` : 'Lost'
+      return p.finishPosition === game.players.length ? 'Lost' : `Safe · ${ordinal(p.finishPosition)}`
     }
     return null
   }
 
   const leaders = isTrace && !finished ? frameLeaders(game) : []
-  const isFinalFrame = isTrace && activePlayers(game).length === 2
+  const lastTwo = isTrace && activePlayers(game).length === 2
 
   return (
     <div className="scoreboard">
       <h1>Scoreboard</h1>
       <p className="variant-line">
         {variant.name}
-        {isTrace && !finished && ` · Frame ${game.frame ?? 1}${isFinalFrame ? ' (final)' : ''}`}
+        {isTrace && !finished && ` · Frame ${game.frame ?? 1}${lastTwo ? ' · last two' : ''}`}
         {isRd && ` · First to ${game.rd!.target}`}
       </p>
 
@@ -137,7 +153,7 @@ export default function Scoreboard({
                   .map((p) => (
                     <li key={p.id}>
                       {p.name} – {p.score}
-                      {!p.sitting && ' (lost)'}
+                      {p.finishPosition === game.players.length && ' (lost)'}
                     </li>
                   ))}
               </ol>
@@ -188,7 +204,7 @@ export default function Scoreboard({
         ) : (
           <>
             <p>
-              <strong>Ball on:</strong> {game.ballOn ?? 'red'}
+              <strong>Ball on:</strong> {cleared ? '—' : (game.ballOn ?? 'red')}
             </p>
             <p>
               <strong>Reds remaining:</strong> {game.redsRemaining}
@@ -200,12 +216,21 @@ export default function Scoreboard({
         </p>
       </div>
 
-      {fouler && !finished && (
+      {cleared && (
+        <div className="replay-banner" role="status">
+          <span>
+            Table cleared.{' '}
+            {isTrace ? 'Start a new frame to carry on; scores are kept.' : 'The frame is over. Reset to start another.'}
+          </span>
+        </div>
+      )}
+
+      {fouler && !finished && !cleared && (
         <div className="replay-banner">
           <span>
             {fouler.name} fouled. {currentPlayer?.name} can play, or put {fouler.name} back in.
           </span>
-          <button type="button" onClick={() => handleControlClick(onReplayFoul)} disabled={locked}>
+          <button type="button" onClick={() => handleControlClick(onReplayFoul)} disabled={scoringLocked}>
             Make {fouler.name} play again
           </button>
         </div>
@@ -244,7 +269,7 @@ export default function Scoreboard({
               className={`ball-btn ball-${ball}`}
               onClick={() => handlePot(ball)}
               title={`${ball} (${ballPoints(ball)} pts)`}
-              disabled={locked}
+              disabled={scoringLocked}
             >
               <span className="ball-label">{ball}</span>
               <span className="ball-value">{ballPoints(ball)}</span>
@@ -287,17 +312,17 @@ export default function Scoreboard({
         </div>
       )}
 
-      {showFrameModal && (
-        <div className="modal-overlay" onClick={() => setShowFrameModal(false)}>
+      {showSitOutModal && (
+        <div className="modal-overlay" onClick={() => setShowSitOutModal(false)}>
           <div className="modal frame-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>End frame {game.frame ?? 1}</h3>
+            <h3>Sit out the leader</h3>
             {leaders.length === 1 ? (
               <>
                 <p>
-                  {leaders[0].name} has the highest score ({leaders[0].score}) and sits out.{' '}
-                  {isFinalFrame ? 'This ends the game.' : 'The others start a new frame and keep their scores.'}
+                  {leaders[0].name} has the highest score ({leaders[0].score}) and sits out as safe. The others play
+                  on.
                 </p>
-                <button type="button" className="modal-confirm" onClick={() => handleEndFrame(leaders[0].id)}>
+                <button type="button" className="modal-confirm" onClick={() => handleSitOut(leaders[0].id)}>
                   {leaders[0].name} sits out
                 </button>
               </>
@@ -306,14 +331,33 @@ export default function Scoreboard({
                 <p>Tied on {leaders[0]?.score}. Choose who sits out.</p>
                 <div className="modal-choices">
                   {leaders.map((p) => (
-                    <button key={p.id} type="button" className="modal-confirm" onClick={() => handleEndFrame(p.id)}>
+                    <button key={p.id} type="button" className="modal-confirm" onClick={() => handleSitOut(p.id)}>
                       {p.name} sits out
                     </button>
                   ))}
                 </div>
               </>
             )}
-            <button type="button" className="modal-cancel" onClick={() => setShowFrameModal(false)}>
+            <button type="button" className="modal-cancel" onClick={() => setShowSitOutModal(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showQuitModal && (
+        <div className="modal-overlay" onClick={() => setShowQuitModal(false)}>
+          <div className="modal frame-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Who quits?</h3>
+            <p>The player who quits loses and the other is safe. This ends the game.</p>
+            <div className="modal-choices">
+              {activePlayers(game).map((p) => (
+                <button key={p.id} type="button" className="modal-confirm" onClick={() => handleQuit(p.id)}>
+                  {p.name} quits
+                </button>
+              ))}
+            </div>
+            <button type="button" className="modal-cancel" onClick={() => setShowQuitModal(false)}>
               Cancel
             </button>
           </div>
@@ -335,7 +379,7 @@ export default function Scoreboard({
           type="button"
           className="control-btn foul-btn"
           onClick={() => setShowFoulModal(true)}
-          disabled={locked}
+          disabled={scoringLocked}
         >
           Foul
         </button>
@@ -343,7 +387,7 @@ export default function Scoreboard({
           type="button"
           className="control-btn turn-btn"
           onClick={() => handleControlClick(onChangeTurn)}
-          disabled={locked}
+          disabled={scoringLocked}
         >
           Change Turn
         </button>
@@ -358,9 +402,45 @@ export default function Scoreboard({
       </div>
 
       {isTrace && !finished && (
-        <button type="button" className="end-frame-btn" onClick={() => setShowFrameModal(true)} disabled={locked}>
-          End Frame
-        </button>
+        <div className="trace-actions">
+          <div className="trace-buttons">
+            {lastTwo ? (
+              <button
+                type="button"
+                className="end-frame-btn"
+                onClick={() => setShowQuitModal(true)}
+                disabled={locked || !canQuit(game)}
+              >
+                Player Quits
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="end-frame-btn"
+                onClick={() => setShowSitOutModal(true)}
+                disabled={locked || !canSitOut(game)}
+              >
+                Sit Out Leader
+              </button>
+            )}
+            <button
+              type="button"
+              className="end-frame-btn"
+              onClick={() => handleControlClick(onNewFrame)}
+              disabled={locked || !cleared}
+            >
+              New Frame
+            </button>
+          </div>
+          <p className="trace-hint">
+            {lastTwo
+              ? 'The last two play on until one of them quits.'
+              : canSitOut(game)
+                ? 'The highest scorer can be sat out at any point.'
+                : 'A player can be sat out from frame 2.'}
+            {!cleared && ' A new frame can start once the table is cleared.'}
+          </p>
+        </div>
       )}
 
       <div className="event-history">

@@ -117,6 +117,8 @@ export function potBall(game: GameState, ball: BallType): { success: boolean; ga
   }
   next.lastPottedColor = freeColour ? undefined : ball
   next.ballOn = getNextBallOn(ball, next.redsRemaining, freeColour)
+  // The final black in sequence leaves nothing on the table
+  if (ball === 'black' && next.redsRemaining === 0 && !freeColour) next.tableCleared = true
   delete next.pendingReplay
 
   addEvent(next, {
@@ -133,6 +135,7 @@ export function potBall(game: GameState, ball: BallType): { success: boolean; ga
 /** Record foul with ball_on and ball_involved (CR-001) */
 export function recordFoul(game: GameState, ballInvolved: FoulBallType): GameState {
   if (game.variant === 'rd') return rdFoul(game, ballInvolved)
+  if (game.tableCleared) return game
 
   const next = cloneGame(game)
   const foulerIndex = next.currentPlayerIndex
@@ -187,18 +190,20 @@ export function replayFoul(game: GameState): GameState {
 /** Pot a ball; a pot that isn't allowed counts as a foul on that ball (CR-001) */
 export function registerPot(game: GameState, ball: BallType): GameState {
   if (game.variant === 'rd') return rdPot(game, ball)
+  if (game.tableCleared) return game
   const result = potBall(game, ball)
   return result.success && result.game ? result.game : recordFoul(game, ball)
 }
 
 export function changeTurn(game: GameState): GameState {
+  if (game.tableCleared) return game
   const next = cloneGame(game)
   passTurn(next)
   delete next.pendingReplay
   return next
 }
 
-// --- Trace: highest scorer sits out after each frame ---
+// --- Trace: from the second frame the highest scorer can be sat out as safe ---
 
 /** Players at the table with the highest score; more than one means a tie to settle by hand */
 export function frameLeaders(game: GameState): Player[] {
@@ -207,8 +212,46 @@ export function frameLeaders(game: GameState): Player[] {
   return active.filter((p) => p.score === top)
 }
 
-/** End the frame: the leader is safe and sits out, the rest start a new frame with scores carried over */
-export function endFrame(game: GameState, sitterId?: string): GameState {
+/** Sitting out starts with the second frame and stops once only two players are left */
+export function canSitOut(game: GameState): boolean {
+  return (
+    game.variant === 'trace' &&
+    game.status !== 'finished' &&
+    (game.frame ?? 1) >= 2 &&
+    activePlayers(game).length > 2
+  )
+}
+
+/** The last two play on, frame after frame, until one of them quits */
+export function canQuit(game: GameState): boolean {
+  return game.variant === 'trace' && game.status !== 'finished' && activePlayers(game).length === 2
+}
+
+/** Once the table is cleared, start a new frame: fresh rack, same players, scores carried over */
+export function newFrame(game: GameState): GameState {
+  if (!game.tableCleared) return game
+  const next = cloneGame(game)
+
+  addEvent(next, {
+    type: 'frame',
+    playerId: next.players[next.currentPlayerIndex].id,
+    points: 0,
+    description: `Frame ${next.frame ?? 1} ended`,
+  })
+  delete next.pendingReplay
+  delete next.tableCleared
+  next.frame = (next.frame ?? 1) + 1
+  next.redsRemaining = 15
+  next.currentBreak = 0
+  next.lastPottedColor = undefined
+  next.ballOn = 'red'
+  next.currentPlayerIndex = next.players.findIndex((p) => !p.sitting)
+  return next
+}
+
+/** At any point from the second frame, the player with the highest total sits out and is safe */
+export function sitOut(game: GameState, sitterId?: string): GameState {
+  if (!canSitOut(game)) return game
   const leaders = frameLeaders(game)
   const chosen = leaders.find((p) => p.id === sitterId) ?? (leaders.length === 1 ? leaders[0] : undefined)
   if (!chosen) return game
@@ -222,24 +265,37 @@ export function endFrame(game: GameState, sitterId?: string): GameState {
     type: 'frame',
     playerId: sitter.id,
     points: 0,
-    description: `Frame ${next.frame ?? 1}: ${sitter.name} sits out on ${sitter.score}`,
+    description: `${sitter.name} sits out on ${sitter.score} (frame ${next.frame ?? 1})`,
+  })
+  delete next.pendingReplay
+
+  // If the sitter was at the table, the next player carries on
+  if (next.players[next.currentPlayerIndex].id === sitter.id && !next.tableCleared) passTurn(next)
+  return next
+}
+
+/** One of the last two quits and loses; the other is safe and the game is over */
+export function quitGame(game: GameState, quitterId: string): GameState {
+  if (!canQuit(game)) return game
+  const next = cloneGame(game)
+  const quitter = activePlayers(next).find((p) => p.id === quitterId)
+  const survivor = activePlayers(next).find((p) => p.id !== quitterId)
+  if (!quitter || !survivor) return game
+
+  survivor.sitting = true
+  survivor.finishPosition = next.players.length - 1
+  quitter.finishPosition = next.players.length
+
+  addEvent(next, {
+    type: 'frame',
+    playerId: quitter.id,
+    points: 0,
+    description: `${quitter.name} quits on ${quitter.score}. ${survivor.name} is safe on ${survivor.score}`,
   })
   delete next.pendingReplay
   next.currentBreak = 0
-
-  const remaining = activePlayers(next)
-  if (remaining.length <= 1) {
-    if (remaining[0]) remaining[0].finishPosition = next.players.length
-    next.status = 'finished'
-    next.winnerId = next.players.find((p) => p.finishPosition === 1)?.id
-    return next
-  }
-
-  next.frame = (next.frame ?? 1) + 1
-  next.redsRemaining = 15
-  next.lastPottedColor = undefined
-  next.ballOn = 'red'
-  next.currentPlayerIndex = next.players.findIndex((p) => !p.sitting)
+  next.status = 'finished'
+  next.winnerId = next.players.find((p) => p.finishPosition === 1)?.id
   return next
 }
 

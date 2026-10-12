@@ -105,6 +105,8 @@ export interface GameState {
   teamTurn?: Record<string, number>
   /** Set after a foul until the next player plays or puts the fouler back in */
   pendingReplay?: PendingReplay
+  /** Every ball has been potted; no more scoring until a new frame starts */
+  tableCleared?: boolean
   /** Trace: current frame number */
   frame?: number
   rd?: RdSettings

@@ -18,7 +18,7 @@ The setup screen offers a catalogue of games (`frontend/src/variants.ts`):
 |------|---------|-------|
 | **Snooker** | 2 | Classic frame. |
 | **Doubles** | 2–6 | Individuals, or any number of teams. Teams take turns at the table and players rotate within their team. |
-| **Trace** | 3–6 | After each frame the highest scorer is safe and sits out; the rest play another frame with scores carried over. The player left after the final two-player frame loses. |
+| **Trace** | 3–6 | Scores carry over from frame to frame and everyone plays the first frame. A new frame can start once the table is cleared. From the second frame, the player with the highest total can be sat out as safe at any point. The last two play on until one of them quits, and that player loses. |
 | **RD** | 2–6 | One red worth an agreed value (typically 10 or 15), colours at face value, potted in any order. First to the agreed target wins, but only once they have made the agreed minimum red attempts and red pots. |
 
 Foul rules:

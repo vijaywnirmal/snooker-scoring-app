@@ -12,7 +12,20 @@ import {
   getBallOnValue,
   getFoulBallValue,
 } from '../services/scoringEngine'
-import { changeTurn, endFrame, frameLeaders, missRed, potBall, recordFoul, registerPot, replayFoul } from './gameActions'
+import {
+  canQuit,
+  canSitOut,
+  changeTurn,
+  frameLeaders,
+  missRed,
+  newFrame,
+  potBall,
+  quitGame,
+  recordFoul,
+  registerPot,
+  replayFoul,
+  sitOut,
+} from './gameActions'
 import { createInitialGameState } from './gameState'
 
 function twoPlayerState(overrides: Partial<GameState> = {}): GameState {
@@ -267,30 +280,81 @@ describe('teams', () => {
   })
 })
 
+/** Pot the six colours in order on a table with no reds left */
+function clearColours(game: GameState): GameState {
+  let next: GameState = { ...game, redsRemaining: 0, lastPottedColor: undefined, ballOn: 'yellow' }
+  for (const ball of ['yellow', 'green', 'brown', 'blue', 'pink', 'black'] as const) {
+    next = registerPot(next, ball)
+  }
+  return next
+}
+
+describe('table cleared', () => {
+  it('is set by the final black and stops further scoring', () => {
+    const game = clearColours(twoPlayerState())
+    expect(game.tableCleared).toBe(true)
+    expect(game.players[0].score).toBe(27)
+    expect(registerPot(game, 'black')).toBe(game)
+    expect(recordFoul(game, 'cue_ball')).toBe(game)
+    expect(changeTurn(game)).toBe(game)
+  })
+
+  it('is not set by a black taken as the free colour after the last red', () => {
+    let game = potBall(twoPlayerState({ redsRemaining: 1 }), 'red').game!
+    game = registerPot(game, 'black')
+    expect(game.tableCleared).toBeFalsy()
+    expect(game.ballOn).toBe('yellow')
+  })
+})
+
 describe('Trace', () => {
   const trace = () => createInitialGameState(['A', 'B', 'C'], undefined, 0, { variant: 'trace' })
+  /** Frame 2 with A leading on 27 and at the table */
+  const secondFrame = () => newFrame(clearColours(trace()))
 
-  it('sits the highest scorer out and starts a new frame with scores carried over', () => {
-    let game = registerPot(trace(), 'red') // A: 1
-    game = changeTurn(game)
-    game = registerPot(game, 'red') // B: 1
-    game = registerPot(game, 'black') // B: 8
-    expect(frameLeaders(game).map((p) => p.name)).toEqual(['B'])
+  it('only starts a new frame once the table is cleared', () => {
+    const midFrame = registerPot(trace(), 'red')
+    expect(newFrame(midFrame)).toBe(midFrame)
 
-    game = endFrame(game)
-    expect(game.players[1].sitting).toBe(true)
-    expect(game.players[1].finishPosition).toBe(1)
+    const game = secondFrame()
     expect(game.frame).toBe(2)
     expect(game.redsRemaining).toBe(15)
     expect(game.ballOn).toBe('red')
-    expect(game.players.map((p) => p.score)).toEqual([1, 8, 0])
+    expect(game.tableCleared).toBeUndefined()
+    expect(game.players.map((p) => p.score)).toEqual([27, 0, 0])
+    expect(game.players.some((p) => p.sitting)).toBe(false)
+  })
+
+  it('does not let anyone sit out during the first frame', () => {
+    const game = registerPot(trace(), 'red')
+    expect(canSitOut(game)).toBe(false)
+    expect(sitOut(game)).toBe(game)
+  })
+
+  it('sits the highest scorer out mid-frame without resetting the table', () => {
+    let game = secondFrame()
+    game = registerPot(game, 'red') // A: 28, 14 reds left
+    expect(frameLeaders(game).map((p) => p.name)).toEqual(['A'])
+
+    game = sitOut(game)
+    expect(game.players[0].sitting).toBe(true)
+    expect(game.players[0].finishPosition).toBe(1)
+    expect(game.frame).toBe(2)
+    expect(game.redsRemaining).toBe(14)
     expect(game.status).toBe('active')
+    // A was at the table, so play passes on
+    expect(game.currentPlayerIndex).toBe(1)
+  })
+
+  it('keeps the current player at the table when someone else sits out', () => {
+    let game = changeTurn(secondFrame()) // B to play, A leads
+    game = sitOut(game)
+    expect(game.players[0].sitting).toBe(true)
+    expect(game.currentPlayerIndex).toBe(1)
   })
 
   it('skips players who are sitting out', () => {
-    let game = registerPot(trace(), 'red')
-    game = endFrame(game) // A sits
-    expect(game.currentPlayerIndex).toBe(1)
+    let game = sitOut(secondFrame()) // A sits, B to play
     game = changeTurn(game)
     expect(game.currentPlayerIndex).toBe(2)
     game = changeTurn(game)
@@ -298,25 +362,45 @@ describe('Trace', () => {
   })
 
   it('gives foul points to the opponent once only two are left', () => {
-    let game = endFrame(registerPot(trace(), 'red')) // A sits, B to play
+    let game = sitOut(secondFrame()) // A sits, B to play
     game = recordFoul(game, 'cue_ball')
-    expect(game.players.map((p) => p.score)).toEqual([1, 0, 4])
-  })
-
-  it('ends the game after the final frame with the last player losing', () => {
-    let game = endFrame(registerPot(trace(), 'red')) // A sits
-    game = registerPot(game, 'red') // B: 1
-    game = endFrame(game)
-    expect(game.status).toBe('finished')
-    expect(game.players.map((p) => p.finishPosition)).toEqual([1, 2, 3])
-    expect(game.players[2].sitting).toBeFalsy()
+    expect(game.players.map((p) => p.score)).toEqual([27, 0, 4])
   })
 
   it('needs a choice when the highest score is tied', () => {
-    const game = trace()
+    const game: GameState = { ...trace(), frame: 2 }
     expect(frameLeaders(game)).toHaveLength(3)
-    expect(endFrame(game)).toBe(game)
-    expect(endFrame(game, game.players[2].id).players[2].sitting).toBe(true)
+    expect(sitOut(game)).toBe(game)
+    expect(sitOut(game, game.players[2].id).players[2].sitting).toBe(true)
+  })
+
+  it('does not sit anyone out once only two are left', () => {
+    let game = sitOut(secondFrame()) // A sits
+    game = registerPot(game, 'red') // B: 1
+    expect(canSitOut(game)).toBe(false)
+    expect(sitOut(game)).toBe(game)
+    expect(game.status).toBe('active')
+  })
+
+  it('lets the last two keep playing new frames', () => {
+    let game = sitOut(secondFrame()) // A sits, B and C left
+    game = newFrame(clearColours(game))
+    expect(game.frame).toBe(3)
+    expect(game.status).toBe('active')
+    expect(game.players.filter((p) => !p.sitting)).toHaveLength(2)
+  })
+
+  it('ends the game when one of the last two quits, and that player loses', () => {
+    let game = secondFrame()
+    expect(canQuit(game)).toBe(false)
+    expect(quitGame(game, game.players[1].id)).toBe(game)
+
+    game = sitOut(game) // A sits
+    expect(canQuit(game)).toBe(true)
+    game = quitGame(game, game.players[1].id) // B quits
+    expect(game.status).toBe('finished')
+    expect(game.players.map((p) => p.finishPosition)).toEqual([1, 3, 2])
+    expect(game.winnerId).toBe(game.players[0].id)
   })
 })
 

@@ -6,7 +6,7 @@
 
 body {
   font-family: system-ui, -apple-system, sans-serif;
-  background: linear-gradient(135deg, #0f1419 0%, #1a2f1a 100%);
+  background: #0f1419;
   color: #e8e8e8;
   min-height: 100vh;
 }
@@ -21,7 +21,7 @@ body {
 .game-setup h1 {
   font-size: 1.75rem;
   margin-bottom: 0.25rem;
-  color: #4ade80;
+  color: #e2e8f0;
 }
 
 .game-setup .subtitle {
@@ -65,9 +65,9 @@ body {
 }
 
 .player-count button.active {
-  border-color: #4ade80;
-  background: rgba(74, 222, 128, 0.15);
-  color: #4ade80;
+  border-color: #e2e8f0;
+  background: rgba(148, 163, 184, 0.15);
+  color: #e2e8f0;
 }
 
 .player-inputs {
@@ -95,7 +95,7 @@ body {
 
 .input-group input:focus {
   outline: none;
-  border-color: #4ade80;
+  border-color: #e2e8f0;
 }
 
 .first-player {
@@ -121,11 +121,11 @@ body {
 }
 
 .radio-option input {
-  accent-color: #4ade80;
+  accent-color: #e2e8f0;
 }
 
 .radio-option input:checked + span {
-  color: #4ade80;
+  color: #e2e8f0;
 }
 
 .game-setup .errors {
@@ -144,7 +144,7 @@ body {
 .start-btn {
   width: 100%;
   padding: 1rem 1.5rem;
-  background: #4ade80;
+  background: #e2e8f0;
   color: #0f1419;
   border: none;
   border-radius: 8px;
@@ -155,14 +155,14 @@ body {
 }
 
 .start-btn:hover {
-  background: #22c55e;
+  background: #cbd5e1;
 }
 
 /* Scoreboard */
 .scoreboard h1 {
   font-size: 1.75rem;
   margin-bottom: 1.5rem;
-  color: #4ade80;
+  color: #e2e8f0;
 }
 
 .scores {
@@ -183,8 +183,8 @@ body {
 }
 
 .player-score.active {
-  border-color: #4ade80;
-  background: rgba(74, 222, 128, 0.1);
+  border-color: #e2e8f0;
+  background: rgba(148, 163, 184, 0.1);
 }
 
 .player-score .name {
@@ -194,7 +194,7 @@ body {
 .player-score .score {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #4ade80;
+  color: #e2e8f0;
 }
 
 .team-scores {
@@ -220,7 +220,7 @@ body {
 .team-score .score {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #4ade80;
+  color: #e2e8f0;
 }
 
 .game-info {
@@ -373,23 +373,23 @@ body {
 }
 
 .foul-btn {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: #ef4444;
-  color: #fca5a5;
+  background: rgba(148, 163, 184, 0.15);
+  border-color: #64748b;
+  color: #e2e8f0;
 }
 
 .foul-btn:hover {
-  background: rgba(239, 68, 68, 0.25);
+  background: rgba(148, 163, 184, 0.25);
 }
 
 .turn-btn {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: #3b82f6;
-  color: #93c5fd;
+  background: rgba(148, 163, 184, 0.15);
+  border-color: #64748b;
+  color: #e2e8f0;
 }
 
 .turn-btn:hover {
-  background: rgba(59, 130, 246, 0.25);
+  background: rgba(148, 163, 184, 0.25);
 }
 
 .undo-btn {
@@ -410,8 +410,8 @@ body {
 
 /* Last event & error */
 .last-event {
-  background: rgba(74, 222, 128, 0.1);
-  border: 1px solid #4ade80;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 0.75rem 1rem;
   margin-bottom: 1rem;
@@ -460,11 +460,11 @@ body {
 }
 
 .event-history .foul-event {
-  color: #fca5a5;
+  color: inherit;
 }
 
 .event-history .foul-points {
-  color: #4ade80;
+  color: #e2e8f0;
 }
 
 /* Modal */
@@ -517,7 +517,7 @@ body {
   left: 0;
   right: 0;
   padding: 0.5rem;
-  background: rgba(59, 130, 246, 0.9);
+  background: rgba(30, 41, 59, 0.95);
   color: white;
   text-align: center;
   font-size: 0.9rem;
@@ -550,8 +550,8 @@ body {
 }
 
 .variant-card.active {
-  border-color: #4ade80;
-  background: rgba(74, 222, 128, 0.15);
+  border-color: #e2e8f0;
+  background: rgba(148, 163, 184, 0.15);
 }
 
 .variant-card .variant-name {
@@ -560,7 +560,7 @@ body {
 }
 
 .variant-card.active .variant-name {
-  color: #4ade80;
+  color: #e2e8f0;
 }
 
 .variant-card .variant-summary {
@@ -639,8 +639,8 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  background: rgba(234, 179, 8, 0.12);
-  border: 1px solid #eab308;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid #64748b;
   border-radius: 8px;
   padding: 0.75rem 1rem;
   margin-bottom: 1rem;
@@ -651,10 +651,10 @@ body {
 .modal-confirm,
 .end-frame-btn {
   padding: 0.55rem 0.9rem;
-  border: 2px solid #eab308;
+  border: 2px solid #64748b;
   border-radius: 8px;
-  background: rgba(234, 179, 8, 0.15);
-  color: #fde047;
+  background: rgba(148, 163, 184, 0.15);
+  color: #e2e8f0;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -666,8 +666,8 @@ body {
 }
 
 .result-banner {
-  background: rgba(74, 222, 128, 0.15);
-  border: 2px solid #4ade80;
+  background: rgba(148, 163, 184, 0.15);
+  border: 2px solid #e2e8f0;
   border-radius: 8px;
   padding: 1rem;
   margin-bottom: 1rem;
@@ -734,8 +734,8 @@ body {
 }
 
 .shuffle-btn:hover {
-  border-color: #4ade80;
-  color: #4ade80;
+  border-color: #e2e8f0;
+  color: #e2e8f0;
 }
 
 .start-actions {
@@ -750,12 +750,12 @@ body {
 
 .shuffle-start-btn {
   background: transparent;
-  color: #4ade80;
-  border: 2px solid #4ade80;
+  color: #e2e8f0;
+  border: 2px solid #e2e8f0;
 }
 
 .shuffle-start-btn:hover {
-  background: rgba(74, 222, 128, 0.15);
+  background: rgba(148, 163, 184, 0.15);
 }
 
 /* Touch and small screens */
@@ -1031,4 +1031,34 @@ button {
   max-height: 22rem;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.trace-actions {
+  margin-bottom: 1.5rem;
+}
+
+.trace-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.trace-buttons .end-frame-btn {
+  margin-bottom: 0;
+}
+
+.trace-hint {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+@media (max-width: 480px) {
+  .trace-actions {
+    margin-bottom: 0.75rem;
+  }
+
+  .trace-buttons {
+    gap: 0.4rem;
+  }
 }

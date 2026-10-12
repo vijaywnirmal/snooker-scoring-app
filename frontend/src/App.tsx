@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { GameState, BallType, FoulBallType } from './types/game'
 import GameSetup from './components/GameSetup'
 import Scoreboard from './components/Scoreboard'
-import { registerPot, recordFoul, changeTurn, replayFoul, missRed, endFrame } from './utils/gameActions'
+import { registerPot, recordFoul, changeTurn, replayFoul, missRed, newFrame, sitOut, quitGame } from './utils/gameActions'
 import { loadSavedGame, saveGame, MAX_HISTORY, type SavedGame } from './services/gameStorage'
 
 function App() {
@@ -49,8 +49,16 @@ function App() {
     applyAction(missRed)
   }
 
-  const handleEndFrame = (sitterId?: string) => {
-    applyAction((g) => endFrame(g, sitterId))
+  const handleNewFrame = () => {
+    applyAction(newFrame)
+  }
+
+  const handleSitOut = (sitterId?: string) => {
+    applyAction((g) => sitOut(g, sitterId))
+  }
+
+  const handleQuit = (quitterId: string) => {
+    applyAction((g) => quitGame(g, quitterId))
   }
 
   const handleUndo = () => {
@@ -78,7 +86,9 @@ function App() {
           onReset={handleReset}
           onReplayFoul={handleReplayFoul}
           onMissRed={handleMissRed}
-          onEndFrame={handleEndFrame}
+          onNewFrame={handleNewFrame}
+          onSitOut={handleSitOut}
+          onQuit={handleQuit}
         />
       ) : (
         <GameSetup onGameStart={handleGameStart} />

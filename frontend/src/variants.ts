@@ -30,7 +30,7 @@ export const VARIANTS: VariantInfo[] = [
   {
     id: 'trace',
     name: 'Trace',
-    summary: 'The highest scorer sits out after each frame until the last two play it off.',
+    summary: 'Scores carry across frames. From frame 2 the highest scorer can sit out as safe. The last two play until one quits.',
     minPlayers: 3,
     maxPlayers: 6,
   },
