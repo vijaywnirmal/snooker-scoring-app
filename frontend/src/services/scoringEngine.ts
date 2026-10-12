@@ -47,10 +47,15 @@ export function canPotBall(
 
   // Colored ball
   if (redsRemaining > 0) {
-    // Reds on table: can only pot color after potting a red (or start of break)
-    if (lastPottedColor && lastPottedColor !== 'red') {
+    // Reds on table: can only pot a colour straight after a red
+    if (lastPottedColor !== 'red') {
       return { valid: false, reason: 'Must pot a red next' }
     }
+    return { valid: true }
+  }
+
+  // The last red earns one free colour before the sequence starts
+  if (lastPottedColor === 'red') {
     return { valid: true }
   }
 
@@ -82,7 +87,8 @@ export function getBallOn(
     if (!lastPottedColor || lastPottedColor === 'red') return 'red'
     return 'colour'
   }
-  if (!lastPottedColor || lastPottedColor === 'red') return 'yellow'
+  if (lastPottedColor === 'red') return 'colour'
+  if (!lastPottedColor) return 'yellow'
   const idx = FINAL_COLOR_SEQUENCE.indexOf(lastPottedColor)
   if (idx < 0 || idx >= FINAL_COLOR_SEQUENCE.length - 1) return 'black'
   return FINAL_COLOR_SEQUENCE[idx + 1]

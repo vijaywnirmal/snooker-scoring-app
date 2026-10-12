@@ -4,8 +4,10 @@
  */
 
 import { useState } from 'react'
-import type { GameState, BallType, FoulBallType } from '../types/game'
+import type { GameState, BallType, FoulBallType, GameEvent, Player } from '../types/game'
 import { BALL_VALUES } from '../types/game'
+import { getVariant } from '../variants'
+import { activePlayers, frameLeaders, rdBarrierMet } from '../utils/gameActions'
 
 const BALLS: BallType[] = ['red', 'yellow', 'green', 'brown', 'blue', 'pink', 'black']
 
@@ -20,6 +22,21 @@ interface ScoreboardProps {
   onUndo: () => void
   onReset: () => void
   onClearError?: () => void
+  /** After a foul: the next player makes the fouler play again */
+  onReplayFoul?: () => void
+  /** RD: the red was attempted and missed */
+  onMissRed?: () => void
+  /** Trace: end the frame; sitterId settles a tie for the highest score */
+  onEndFrame?: (sitterId?: string) => void
+}
+
+function ordinal(n: number): string {
+  const suffix = n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'
+  return `${n}${suffix}`
+}
+
+function foulPointsLabel(event: GameEvent): string {
+  return `${event.deducted ? '-' : '+'}${event.points}`
 }
 
 export default function Scoreboard({
@@ -33,10 +50,23 @@ export default function Scoreboard({
   onUndo,
   onReset,
   onClearError,
+  onReplayFoul,
+  onMissRed,
+  onEndFrame,
 }: ScoreboardProps) {
   const [showFoulModal, setShowFoulModal] = useState(false)
+  const [showFrameModal, setShowFrameModal] = useState(false)
   const currentPlayer = game.players[game.currentPlayerIndex]
   const lastEvent = game.events[game.events.length - 1]
+  const variant = getVariant(game.variant)
+  const isRd = game.variant === 'rd' && !!game.rd
+  const isTrace = game.variant === 'trace'
+  const finished = game.status === 'finished'
+  const locked = loading || finished
+  const fouler = game.pendingReplay ? game.players[game.pendingReplay.playerIndex] : undefined
+  const winner = game.players.find((p) => p.id === game.winnerId)
+
+  const ballPoints = (ball: BallType) => (isRd && ball === 'red' ? game.rd!.redValue : BALL_VALUES[ball])
 
   const handlePot = async (ball: BallType) => {
     onClearError?.()
@@ -51,9 +81,9 @@ export default function Scoreboard({
     onUndo()
   }
 
-  const handleControlClick = (fn: () => void) => {
+  const handleControlClick = (fn?: () => void) => {
     onClearError?.()
-    fn()
+    fn?.()
   }
 
   const handleFoulSelect = (ball: FoulBallType) => {
@@ -62,9 +92,33 @@ export default function Scoreboard({
     onFoul(ball)
   }
 
+  const handleEndFrame = (sitterId?: string) => {
+    setShowFrameModal(false)
+    onClearError?.()
+    onEndFrame?.(sitterId)
+  }
+
+  const playerStatus = (p: Player) => {
+    if (isRd) {
+      return `Reds ${p.redPots ?? 0}/${game.rd!.minPots} · Tries ${p.redAttempts ?? 0}/${game.rd!.minAttempts}${rdBarrierMet(game, p) ? ' ✓' : ''}`
+    }
+    if (isTrace && p.finishPosition) {
+      return p.sitting ? `Safe · ${ordinal(p.finishPosition)}` : 'Lost'
+    }
+    return null
+  }
+
+  const leaders = isTrace && !finished ? frameLeaders(game) : []
+  const isFinalFrame = isTrace && activePlayers(game).length === 2
+
   return (
     <div className="scoreboard">
       <h1>Scoreboard</h1>
+      <p className="variant-line">
+        {variant.name}
+        {isTrace && !finished && ` · Frame ${game.frame ?? 1}${isFinalFrame ? ' (final)' : ''}`}
+        {isRd && ` · First to ${game.rd!.target}`}
+      </p>
 
       {loading && (
         <div className="loading-overlay">
@@ -72,16 +126,44 @@ export default function Scoreboard({
         </div>
       )}
 
+      {finished && (
+        <div className="result-banner" role="status">
+          {isTrace ? (
+            <>
+              <strong>Game over</strong>
+              <ol>
+                {[...game.players]
+                  .sort((a, b) => (a.finishPosition ?? 0) - (b.finishPosition ?? 0))
+                  .map((p) => (
+                    <li key={p.id}>
+                      {p.name} – {p.score}
+                      {!p.sitting && ' (lost)'}
+                    </li>
+                  ))}
+              </ol>
+            </>
+          ) : (
+            <strong>{winner?.name} wins with {winner?.score}</strong>
+          )}
+        </div>
+      )}
+
       <div className="scores">
-        {game.players.map((p, i) => (
-          <div
-            key={p.id}
-            className={`player-score ${i === game.currentPlayerIndex ? 'active' : ''}`}
-          >
-            <span className="name">{p.name}</span>
-            <span className="score">{p.score}</span>
-          </div>
-        ))}
+        {game.players.map((p, i) => {
+          const status = playerStatus(p)
+          return (
+            <div
+              key={p.id}
+              className={`player-score ${i === game.currentPlayerIndex && !finished ? 'active' : ''} ${p.sitting ? 'sitting' : ''}`}
+            >
+              <span className="player-id">
+                <span className="name">{p.name}</span>
+                {status && <span className="player-status">{status}</span>}
+              </span>
+              <span className="score">{p.score}</span>
+            </div>
+          )
+        })}
       </div>
 
       {game.teams && game.teams.length > 0 && (
@@ -99,16 +181,35 @@ export default function Scoreboard({
         <p>
           <strong>Current player:</strong> {currentPlayer?.name}
         </p>
-        <p>
-          <strong>Ball on:</strong> {(game as GameState & { ballOn?: string }).ballOn ?? 'red'}
-        </p>
-        <p>
-          <strong>Reds remaining:</strong> {game.redsRemaining}
-        </p>
+        {isRd ? (
+          <p>
+            <strong>Red:</strong> {game.rd!.redValue} points, {game.rd!.redValue} off for a miss
+          </p>
+        ) : (
+          <>
+            <p>
+              <strong>Ball on:</strong> {game.ballOn ?? 'red'}
+            </p>
+            <p>
+              <strong>Reds remaining:</strong> {game.redsRemaining}
+            </p>
+          </>
+        )}
         <p>
           <strong>Current break:</strong> {game.currentBreak}
         </p>
       </div>
+
+      {fouler && !finished && (
+        <div className="replay-banner">
+          <span>
+            {fouler.name} fouled. {currentPlayer?.name} can play, or put {fouler.name} back in.
+          </span>
+          <button type="button" onClick={() => handleControlClick(onReplayFoul)} disabled={locked}>
+            Make {fouler.name} play again
+          </button>
+        </div>
+      )}
 
       {lastEvent && (
         <div className="last-event">
@@ -118,7 +219,7 @@ export default function Scoreboard({
               <>
                 {lastEvent.description?.split('|')[0]?.trim()}
                 <br />
-                <small>Ball on: {String(lastEvent.ballOn).toUpperCase()} | Ball involved: {lastEvent.ballInvolved === 'cue_ball' ? 'CUE BALL' : String(lastEvent.ballInvolved).toUpperCase()} | +{lastEvent.points} pts</small>
+                <small>Ball on: {String(lastEvent.ballOn).toUpperCase()} | Ball involved: {lastEvent.ballInvolved === 'cue_ball' ? 'CUE BALL' : String(lastEvent.ballInvolved).toUpperCase()} | {foulPointsLabel(lastEvent)} pts</small>
               </>
             ) : (
               lastEvent.description
@@ -142,11 +243,11 @@ export default function Scoreboard({
               type="button"
               className={`ball-btn ball-${ball}`}
               onClick={() => handlePot(ball)}
-              title={`${ball} (${BALL_VALUES[ball]} pts)`}
-              disabled={loading}
+              title={`${ball} (${ballPoints(ball)} pts)`}
+              disabled={locked}
             >
               <span className="ball-label">{ball}</span>
-              <span className="ball-value">{BALL_VALUES[ball]}</span>
+              <span className="ball-value">{ballPoints(ball)}</span>
             </button>
           ))}
         </div>
@@ -163,17 +264,17 @@ export default function Scoreboard({
                   type="button"
                   className={`ball-btn ball-${ball}`}
                   onClick={() => handleFoulSelect(ball)}
-                  disabled={loading}
+                  disabled={locked}
                 >
                   <span className="ball-label">{ball}</span>
-                  <span className="ball-value">{BALL_VALUES[ball]}</span>
+                  <span className="ball-value">{ballPoints(ball)}</span>
                 </button>
               ))}
               <button
                 type="button"
                 className="ball-btn ball-cue"
                 onClick={() => handleFoulSelect('cue_ball')}
-                disabled={loading}
+                disabled={locked}
               >
                 <span className="ball-label">Cue ball</span>
                 <span className="ball-value">—</span>
@@ -186,12 +287,55 @@ export default function Scoreboard({
         </div>
       )}
 
+      {showFrameModal && (
+        <div className="modal-overlay" onClick={() => setShowFrameModal(false)}>
+          <div className="modal frame-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>End frame {game.frame ?? 1}</h3>
+            {leaders.length === 1 ? (
+              <>
+                <p>
+                  {leaders[0].name} has the highest score ({leaders[0].score}) and sits out.{' '}
+                  {isFinalFrame ? 'This ends the game.' : 'The others start a new frame and keep their scores.'}
+                </p>
+                <button type="button" className="modal-confirm" onClick={() => handleEndFrame(leaders[0].id)}>
+                  {leaders[0].name} sits out
+                </button>
+              </>
+            ) : (
+              <>
+                <p>Tied on {leaders[0]?.score}. Choose who sits out.</p>
+                <div className="modal-choices">
+                  {leaders.map((p) => (
+                    <button key={p.id} type="button" className="modal-confirm" onClick={() => handleEndFrame(p.id)}>
+                      {p.name} sits out
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            <button type="button" className="modal-cancel" onClick={() => setShowFrameModal(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="controls">
+        {isRd && (
+          <button
+            type="button"
+            className="control-btn foul-btn"
+            onClick={() => handleControlClick(onMissRed)}
+            disabled={locked}
+          >
+            Red missed
+          </button>
+        )}
         <button
           type="button"
           className="control-btn foul-btn"
           onClick={() => setShowFoulModal(true)}
-          disabled={loading}
+          disabled={locked}
         >
           Foul
         </button>
@@ -199,7 +343,7 @@ export default function Scoreboard({
           type="button"
           className="control-btn turn-btn"
           onClick={() => handleControlClick(onChangeTurn)}
-          disabled={loading}
+          disabled={locked}
         >
           Change Turn
         </button>
@@ -213,24 +357,30 @@ export default function Scoreboard({
         </button>
       </div>
 
+      {isTrace && !finished && (
+        <button type="button" className="end-frame-btn" onClick={() => setShowFrameModal(true)} disabled={locked}>
+          End Frame
+        </button>
+      )}
+
       <div className="event-history">
-        <h3>Event history</h3>
+        <h3>Event history ({game.events.length})</h3>
         {game.events.length === 0 ? (
           <p className="empty">No events yet</p>
         ) : (
           <ul>
-            {[...game.events].reverse().slice(0, 10).map((e) => (
+            {[...game.events].reverse().map((e) => (
               <li key={e.id} className={e.type === 'foul' ? 'foul-event' : ''}>
                 {e.type === 'foul' && e.ballOn && e.ballInvolved ? (
                   <>
-                    <strong>{(e as { description?: string }).description?.split('|')[0]?.trim()}</strong>
+                    <strong>{e.description?.split('|')[0]?.trim()}</strong>
                     <br />
                     Ball on: {String(e.ballOn).toUpperCase()} | Ball involved: {e.ballInvolved === 'cue_ball' ? 'CUE BALL' : String(e.ballInvolved).toUpperCase()}
                     <br />
-                    <span className="foul-points">+{e.points} points</span>
+                    <span className="foul-points">{foulPointsLabel(e)} points</span>
                   </>
                 ) : (
-                  (e as { description?: string }).description
+                  e.description
                 )}
               </li>
             ))}
@@ -244,7 +394,7 @@ export default function Scoreboard({
         onClick={onReset}
         disabled={loading}
       >
-        Reset Game
+        {finished ? 'New Game' : 'Reset Game'}
       </button>
     </div>
   )

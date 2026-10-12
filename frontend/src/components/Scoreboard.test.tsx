@@ -11,6 +11,7 @@ import type { GameState } from '../types/game'
 
 const mockGame: GameState = {
   id: 'game-1',
+  variant: 'snooker',
   mode: 'singles',
   players: [
     { id: 'p1', name: 'Alice', score: 10 },

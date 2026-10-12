@@ -1,25 +1,12 @@
 # Dependencies
 node_modules/
 frontend/node_modules/
-backend/venv/
-backend/.venv/
-__pycache__/
-*.py[cod]
-*.pyo
-.Python
-*.egg-info/
-.eggs/
 dist/
 build/
 
 # Environment
 .env
 .env.local
-backend/.env
-
-# SQLite database (when using default)
-*.db
-backend/*.db
 
 # IDE
 .idea/
