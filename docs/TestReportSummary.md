@@ -2,7 +2,7 @@
 
 **Project:** Smart Snooker Scoring System  
 **Document Version:** 1.0  
-**Last Updated:** March 2025  
+**Last Updated:** October 2026  
 **Related Documents:** TestPlan.md, TestCaseScenarios.md, ManualTestPlan.md
 
 ---
@@ -17,10 +17,10 @@ This document summarizes test execution results for the Smart Snooker Scoring Sy
 
 | Field | Value |
 |-------|-------|
-| **Test Cycle** | 1 – Automated Tests |
-| **Execution Date** | March 8, 2025 |
+| **Test Cycle** | 2 – Automated Tests (browser-only app) |
+| **Execution Date** | October 12, 2026 |
 | **Tester(s)** | Automated |
-| **Environment** | Backend: port 8000, Frontend: port 5173 |
+| **Environment** | Vitest with jsdom |
 | **Build/Version** | Current (main) |
 | **Browser(s)** | N/A (automated only) |
 
@@ -28,29 +28,17 @@ This document summarizes test execution results for the Smart Snooker Scoring Sy
 
 ## 3. Automated Test Results
 
-### 3.1 Backend (pytest)
+### 3.1 App (Vitest)
 
 | Metric | Value |
 |--------|-------|
-| **Total Tests** | 57 |
-| **Passed** | 57 |
-| **Failed** | 0 |
-| **Skipped** | 0 |
-| **Command** | `cd backend && python -m pytest tests/ -v` |
-
-**Notes:** All tests passed. 61 deprecation warnings (datetime.utcnow, Pydantic config).
-
-### 3.2 Frontend (Vitest)
-
-| Metric | Value |
-|--------|-------|
-| **Total Tests** | 22 |
-| **Passed** | 22 |
+| **Total Tests** | 77 |
+| **Passed** | 77 |
 | **Failed** | 0 |
 | **Skipped** | 0 |
 | **Command** | `cd frontend && npm run test:run` |
 
-**Notes:** All tests passed. GameSetup (7 tests), Scoreboard (15 tests).
+**Notes:** All tests passed. Game actions and scoring engine (44 tests), GameSetup (13), Scoreboard (15), App flow and persistence (5). The backend and its pytest suite were removed; the scoring-engine tests were ported to Vitest.
 
 ---
 
@@ -76,7 +64,7 @@ This document summarizes test execution results for the Smart Snooker Scoring Sy
 
 | Metric | Formula | Value |
 |--------|---------|-------|
-| **Pass Rate (Automated)** | 79 / 79 × 100% | 100% |
+| **Pass Rate (Automated)** | 77 / 77 × 100% | 100% |
 | **Manual Pass Rate** | N/A – not executed | — |
 
 ---
@@ -115,11 +103,11 @@ This document summarizes test execution results for the Smart Snooker Scoring Sy
 
 | Component | Version |
 |-----------|---------|
-| Node.js | v22.17.0 |
-| Python | 3.13.5 |
-| Backend (FastAPI) | 0.115.6 |
-| Frontend (React/Vite) | React 19, Vite 7 |
-| Database | SQLite (test_snooker.db for tests) |
+| Node.js | v24.21.0 |
+| React | 19.2.4 |
+| Vite | 7.3.1 |
+| Vitest | 2.1.9 |
+| Storage | Browser localStorage (jsdom in tests) |
 | Browser(s) | N/A (automated) |
 
 ---
@@ -128,7 +116,7 @@ This document summarizes test execution results for the Smart Snooker Scoring Sy
 
 | Item | Description |
 |------|-------------|
-| Deprecation warnings | Backend uses datetime.utcnow() and Pydantic class-based config; consider updating in future |
+| Manual testing | Manual test cases have not been executed against the browser-only app |
 
 ---
 
@@ -136,8 +124,6 @@ This document summarizes test execution results for the Smart Snooker Scoring Sy
 
 | Recommendation | Priority |
 |----------------|----------|
-| Replace datetime.utcnow() with datetime.now(datetime.UTC) | Low |
-| Migrate Pydantic Config to ConfigDict | Low |
 | Execute manual test cases before release | High |
 
 ---
@@ -153,7 +139,7 @@ This document summarizes test execution results for the Smart Snooker Scoring Sy
 
 **Overall Result:** ☑ Pass (Automated)  ☐ Fail  ☐ Conditional Pass
 
-**Comments:** All 79 automated tests (57 backend + 22 frontend) passed. Manual test execution pending.
+**Comments:** All 77 automated tests passed. Manual test execution pending.
 
 ---
 

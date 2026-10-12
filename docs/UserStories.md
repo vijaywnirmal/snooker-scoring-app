@@ -307,10 +307,11 @@ This document defines user stories for the Smart Snooker Scoring System. Each st
 
 | # | Given | When | Then |
 |---|-------|------|------|
-| AC1 | A game is in progress | I refresh the browser (with game ID in URL) | The same game state is loaded |
-| AC2 | I have made several pots | I refresh | Scores, ball on, reds, and events are preserved |
+| AC1 | A game is in progress | I refresh the browser | The same game state is loaded |
+| AC2 | I have made several pots | I refresh | Scores, ball on, reds, events and undo are preserved |
+| AC3 | I reset the game | I refresh | The setup screen is shown; the old game is not restored |
 
-**Traceability:** FR-10 (Database), SRS 3.6
+**Traceability:** FRD 10 (Data Storage), SRS 3.6
 
 ---
 

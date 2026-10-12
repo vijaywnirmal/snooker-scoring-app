@@ -23,12 +23,11 @@ This document provides a manual test checklist for the Smart Snooker Scoring Sys
 
 | Item | Requirement |
 |------|-------------|
-| Backend running | `cd backend && uvicorn app.main:app --reload` (port 8000) |
-| Frontend running | `cd frontend && npm run dev` (port 5173) |
+| App running | `cd frontend && npm run dev` (port 5173) |
 | Browser | Chrome, Firefox, Safari, or Edge (latest) |
-| Database | SQLite (default) or PostgreSQL |
+| Browser storage | localStorage enabled (not a private window) |
 
-**Start both servers before testing.**
+**Start the app before testing.** No backend or database is needed.
 
 ---
 
@@ -301,12 +300,11 @@ This document provides a manual test checklist for the Smart Snooker Scoring Sys
 |-------|-------|
 | **User Story** | US-8.1 |
 | **Steps** | 1. Start game, pot a few balls |
-| | 2. Note URL (contains game ID) |
-| | 3. Refresh browser |
-| **Expected** | Same game state loaded; scores preserved |
+| | 2. Refresh browser |
+| **Expected** | Same game state loaded; scores, events and undo preserved |
 | **Pass/Fail** | ☐ |
 
-**Note:** Requires game ID in URL (e.g. via routing). If app does not persist URL, skip or mark N/A.
+**Note:** The game is saved in the browser's localStorage, so it is restored only in the same browser on the same device.
 
 ---
 
@@ -355,7 +353,7 @@ When a test fails, record:
 - **TC-ID:** Test case that failed  
 - **Steps to reproduce:** Exact actions  
 - **Expected vs actual:** What was observed  
-- **Environment:** Browser, OS, backend/frontend versions  
+- **Environment:** Browser, OS, app version  
 
 ---
 

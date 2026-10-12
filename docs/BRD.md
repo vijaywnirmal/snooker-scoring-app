@@ -133,6 +133,8 @@ The Smart Snooker Scoring System is a digital application that enables snooker p
 
 ## 9. High-Level System Architecture
 
+The application runs entirely in the browser. There is no backend server and no database.
+
 ```
 ┌─────────────────────────────────────┐
 │     User Interface (Scoreboard App)  │
@@ -141,20 +143,14 @@ The Smart Snooker Scoring System is a digital application that enables snooker p
                   │
                   ▼
 ┌─────────────────────────────────────┐
-│     Backend API (FastAPI)            │
-│     REST endpoints                  │
-└─────────────────┬───────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────┐
-│     Game Logic Engine                │
+│     Game Logic Engine (in browser)   │
 │     Scoring, turn management, fouls │
 └─────────────────┬───────────────────┘
                   │
                   ▼
 ┌─────────────────────────────────────┐
-│     Database (PostgreSQL / SQLite)   │
-│     Game state, events, history      │
+│     Browser Storage (localStorage)   │
+│     Current game and undo history    │
 └─────────────────────────────────────┘
 
 Future Addition:
@@ -164,9 +160,11 @@ Future Addition:
                                    │
                                    ▼
                         ┌──────────────────────┐
-                        │ Scoring API           │
+                        │ Game Logic Engine     │
                         └──────────────────────┘
 ```
+
+Each device keeps its own game, so several tables can be scored at the same time without affecting each other.
 
 ---
 
@@ -177,8 +175,8 @@ Future Addition:
 | 1 | Requirements & Planning | Complete |
 | 2 | Scoring Engine Development | Complete |
 | 3 | Manual Scoreboard Interface | Complete |
-| 4 | Backend API | Complete |
-| 5 | Data Storage | Complete |
+| 4 | Backend API | Removed – scoring moved into the browser |
+| 5 | Data Storage | Complete (browser localStorage) |
 | 6 | Computer Vision Prototype | Future |
 | 7 | Vision Integration | Future |
 | 8 | Final System Enhancements | Future |
@@ -207,8 +205,8 @@ Future Addition:
 
 ### Dependencies
 
-- Node.js 18+ and Python 3.10+ for development  
-- PostgreSQL or SQLite for data persistence  
+- Node.js 18+ for development  
+- A modern browser with localStorage for saving the current game  
 - Future: CCTV camera and computer vision infrastructure  
 
 ---

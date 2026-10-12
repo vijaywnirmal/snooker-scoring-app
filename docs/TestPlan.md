@@ -20,7 +20,7 @@ This document defines the test strategy, scope, approach, and schedule for the S
 | Functional correctness | Verify all features work per FRD and User Stories |
 | Scoring accuracy | Validate ball values, foul calculation, ball-on logic (CR-001) |
 | User workflows | Ensure setup, scoring, foul, turn, undo, reset flows work end-to-end |
-| Data integrity | Confirm game state persists and undo restores correctly |
+| Data integrity | Confirm game state survives a page reload and undo restores correctly |
 
 ---
 
@@ -36,7 +36,7 @@ This document defines the test strategy, scope, approach, and schedule for the S
 | Foul Handling | Foul modal, ball involved, penalty calculation |
 | Turn Management | Change turn, break tracking |
 | Undo & Reset | Undo last action, reset game |
-| API | Backend endpoints (covered by automated tests) |
+| Persistence | Game saved to and restored from browser localStorage (covered by automated tests) |
 | Scoring Engine | Ball-on, foul formula (covered by automated tests) |
 
 ### 3.2 Out of Scope
@@ -54,9 +54,9 @@ This document defines the test strategy, scope, approach, and schedule for the S
 
 | Type | Tool/Method | Coverage |
 |------|-------------|----------|
-| **Unit tests** | pytest (backend) | Scoring engine, ball values, foul calculation |
-| **API integration tests** | pytest + FastAPI TestClient | All REST endpoints |
+| **Unit tests** | Vitest | Scoring engine, ball values, foul calculation, game actions |
 | **Component tests** | Vitest + React Testing Library | GameSetup, Scoreboard |
+| **App flow tests** | Vitest + React Testing Library | Start, pot, foul, undo, reset, restore after reload |
 | **Manual functional tests** | TestCaseScenarios.md | End-to-end user flows |
 | **Smoke tests** | Manual | Critical path verification |
 
@@ -66,15 +66,12 @@ This document defines the test strategy, scope, approach, and schedule for the S
 
 | Item | Requirement |
 |------|-------------|
-| Backend | FastAPI on port 8000 |
-| Frontend | Vite dev server on port 5173 |
-| Database | SQLite (default) or PostgreSQL |
+| App | Vite dev server on port 5173 |
+| Storage | Browser localStorage |
 | Browsers | Chrome, Firefox, Safari, Edge (latest 2 versions) |
 | OS | Windows, macOS, Linux |
 
-**Start commands:**
-- Backend: `cd backend && uvicorn app.main:app --reload`
-- Frontend: `cd frontend && npm run dev`
+**Start command:** `cd frontend && npm run dev`
 
 ---
 
@@ -82,8 +79,8 @@ This document defines the test strategy, scope, approach, and schedule for the S
 
 ### Entry Criteria
 
-- [ ] Build succeeds (frontend and backend)
-- [ ] Automated tests pass (`pytest tests/`, `npm run test:run`)
+- [ ] Build succeeds (`npm run build`)
+- [ ] Automated tests pass (`npm run test:run`)
 - [ ] Test environment available
 
 ### Exit Criteria

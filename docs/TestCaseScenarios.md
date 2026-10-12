@@ -296,10 +296,10 @@ This document provides detailed test case scenarios for manual and automated tes
 |-------|-------|
 | **User Story** | US-8.1 |
 | **Priority** | Medium |
-| **Preconditions** | Game with pots; URL contains game ID |
+| **Preconditions** | Game with pots; localStorage enabled |
 | **Steps** | 1. Refresh browser |
-| **Expected Result** | Same game state loaded |
-| **Note** | N/A if app does not persist game ID in URL |
+| **Expected Result** | Same game state loaded, including event history and undo |
+| **Note** | Restored only in the same browser on the same device |
 
 ---
 
@@ -310,7 +310,7 @@ This document provides detailed test case scenarios for manual and automated tes
 | Field | Value |
 |-------|-------|
 | **Priority** | High |
-| **Preconditions** | App and backend running |
+| **Preconditions** | App running |
 | **Steps** | 1. Start 2-player game. 2. Pot red, pot blue, change turn. 3. Record foul (cue ball), undo. 4. Reset game. |
 | **Expected Result** | All actions succeed; no errors |
 
@@ -319,7 +319,7 @@ This document provides detailed test case scenarios for manual and automated tes
 | Field | Value |
 |-------|-------|
 | **Priority** | High |
-| **Preconditions** | App and backend running |
+| **Preconditions** | App running |
 | **Steps** | 1. Start 4-player game. 2. Pot red, pot blue. 3. Verify team scores update. 4. Record foul; verify opposing team gets points. |
 | **Expected Result** | Team play works correctly |
 

@@ -19,53 +19,48 @@ This document specifies the technical requirements, data models, interfaces, and
 
 | Layer | Technology | Version |
 |-------|------------|---------|
-| Frontend | React, TypeScript, Vite | React 18+, TS 5+, Vite 5+ |
-| Backend | FastAPI | 0.100+ |
-| Database | SQLite (default) / PostgreSQL | SQLite 3 / PostgreSQL 14+ |
-| ORM | SQLAlchemy | 2.x |
+| App | React, TypeScript, Vite | React 19, TS 5+, Vite 7 |
+| Scoring engine | TypeScript, runs in the browser | — |
+| Storage | Browser `localStorage` | — |
+
+There is no backend server and no database.
 
 ### 2.2 Component Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Frontend (React + Vite)                                         │
-│  - Game setup UI                                                 │
-│  - Scoreboard, ball controls, foul modal                         │
-│  - Event history display                                         │
-│  Port: 5173                                                      │
+│  UI (React + Vite)                                               │
+│  - Game setup (components/GameSetup.tsx)                         │
+│  - Scoreboard, ball controls, foul modal, event history          │
+│    (components/Scoreboard.tsx)                                   │
+│  - App.tsx holds the current game and undo history               │
 └────────────────────────────┬────────────────────────────────────┘
-                             │ HTTP /api/* → proxy to backend
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Backend (FastAPI)                                               │
-│  - REST API (game, state, pot, foul, turn, undo, reset)          │
-│  - CORS: localhost:5173, 127.0.0.1:5173                          │
-│  Port: 8000                                                      │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
+                             │ function calls
          ┌───────────────────┼───────────────────┐
          ▼                   ▼                   ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────────┐
-│ Scoring Engine  │ │ Game Repository  │ │ Config (pydantic-settings)│
-│ - pot_ball      │ │ - save_game      │ │ - DATABASE_URL           │
-│ - record_foul   │ │ - get_game       │ │   (sqlite default)       │
-│ - change_turn   │ │ - push/pop hist  │ └─────────────────────────┘
-└─────────────────┘ └────────┬────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Database (SQLAlchemy)                                           │
-│  - game_states (id, state_json, created_at, updated_at)           │
-│  - game_state_history (id, game_id, state_json, created_at)      │
-└─────────────────────────────────────────────────────────────────┘
+│ Scoring rules   │ │ Game actions     │ │ Game storage             │
+│ scoringEngine.ts│ │ gameActions.ts   │ │ gameStorage.ts           │
+│ - canPotBall    │ │ - registerPot    │ │ - loadSavedGame          │
+│ - getBallOn     │ │ - recordFoul     │ │ - saveGame               │
+│ - foul points   │ │ - changeTurn     │ │                          │
+└─────────────────┘ └─────────────────┘ └────────────┬────────────┘
+                                                      │
+                                                      ▼
+                                        ┌─────────────────────────┐
+                                        │ Browser localStorage     │
+                                        │ { game, history }        │
+                                        └─────────────────────────┘
 ```
 
 ### 2.3 Deployment
 
-| Environment | Frontend | Backend | Database |
-|-------------|----------|---------|----------|
-| Development | `npm run dev` (Vite) | `uvicorn app.main:app` | SQLite file |
-| Production | Static build served | ASGI server | PostgreSQL (optional) |
+| Environment | How it runs |
+|-------------|-------------|
+| Development | `npm run dev` in `frontend/` (Vite, port 5173) |
+| Production | Static build (`npm run build`) served by Vercel, root directory `frontend` |
+
+No environment variables are required.
 
 ---
 
@@ -146,201 +141,46 @@ This document specifies the technical requirements, data models, interfaces, and
 | events | GameEvent[] | Scoring event history |
 | status | "setup" \| "active" \| "finished" | Game status |
 | createdAt | string (ISO 8601) | Creation time |
-| canUndo | boolean | Whether undo is available (response only) |
 
-### 3.6 Database Schema
+### 3.6 Browser Storage
 
-#### game_states
+The current game is stored in `localStorage` under the key `snooker-scoring:game:v1` as one JSON value:
 
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | VARCHAR(36) | PRIMARY KEY, UUID |
-| state_json | JSON | NOT NULL |
-| created_at | DATETIME | DEFAULT utcnow |
-| updated_at | DATETIME | DEFAULT utcnow, ON UPDATE utcnow |
+| Field | Type | Description |
+|-------|------|-------------|
+| game | GameState | Current game state |
+| history | GameState[] | Earlier states for undo, oldest first, at most 50 |
 
-#### game_state_history
-
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | VARCHAR(36) | PRIMARY KEY, UUID |
-| game_id | VARCHAR(36) | FK → game_states.id, ON DELETE CASCADE |
-| state_json | JSON | NOT NULL |
-| created_at | DATETIME | DEFAULT utcnow |
+- Written after every state change; removed on reset
+- Read once when the app loads; invalid or missing data means no saved game
+- Read and write failures are ignored: the game keeps working but does not survive a reload
 
 ---
 
-## 4. API Specification
+## 4. Scoring Actions
 
-### 4.1 Base Configuration
+Scoring actions are plain functions in `frontend/src/utils/gameActions.ts` and `gameState.ts`. Each takes the current `GameState` and returns a new one; the state passed in is never modified. There is no API.
 
-| Item | Value |
-|------|-------|
-| Backend base URL | `http://localhost:8000` |
-| Frontend proxy | `/api` → `http://localhost:8000` (path rewritten: `/api` stripped) |
-| Content-Type | `application/json` |
+| Function | Input | Behavior |
+|----------|-------|----------|
+| `createInitialGameState` | player names, team numbers?, first player index, options | Creates a new game |
+| `registerPot` | game, ball | Valid pot: score, break and ball on updated, event recorded. Pot not allowed: recorded as a foul on that ball (CR-001) |
+| `recordFoul` | game, ball involved | Applies the foul penalty, ends the break, passes the turn, records the event |
+| `changeTurn` | game | Passes to the next player and resets the break |
 
-### 4.2 Endpoints
+`ball` is one of red, yellow, green, brown, blue, pink, black. `ball involved` may also be `cue_ball`.
 
-#### POST /game/start
+Undo and reset are handled in `App.tsx` (see section 6).
 
-Create a new game.
+### 4.1 Input Validation
 
-**Request Body**
-
-```json
-{
-  "num_players": 2,
-  "player_names": ["Alice", "Bob"],
-  "team_assignments": null,
-  "first_player_index": 0
-}
-```
-
-| Field | Type | Required | Constraints |
-|-------|------|----------|-------------|
-| num_players | int | Yes | 2 or 4 |
-| player_names | string[] | Yes | Length = num_players, 1–30 chars each |
-| team_assignments | (string \| null)[] | No | 4 elements for 4-player; null = auto-assign |
-| first_player_index | int | No | 0–3, default 0 |
-
-**Response**
-
-```json
-{
-  "game_id": "uuid",
-  "message": "Game started",
-  "state": { /* GameState */ }
-}
-```
-
-**Errors:** 400 if `len(player_names) != num_players`
-
----
-
-#### GET /game/state/{game_id}
-
-Retrieve current game state.
-
-**Response:** `GameState` (includes `canUndo`)
-
-**Errors:** 404 if game not found
-
----
-
-#### POST /game/{game_id}/pot
-
-Register a pot. Invalid pot is treated as foul (CR-001).
-
-**Request Body**
-
-```json
-{
-  "ball": "red"
-}
-```
-
-| Field | Value | Pattern |
-|-------|-------|---------|
-| ball | red \| yellow \| green \| brown \| blue \| pink \| black | Required |
-
-**Response:** `GameState`
-
-**Behavior:**
-- Valid pot: Score updated, break updated, ball on updated, event recorded
-- Invalid pot: Foul recorded with `ball_involved = ball` attempted; opponent receives penalty; turn switches
-
-**Errors:** 404 if game not found
-
----
-
-#### POST /game/{game_id}/foul
-
-Record a foul with ball involved.
-
-**Request Body**
-
-```json
-{
-  "ball_involved": "cue_ball"
-}
-```
-
-| Field | Value | Pattern |
-|-------|-------|---------|
-| ball_involved | red \| yellow \| green \| brown \| blue \| pink \| black \| cue_ball | Required |
-
-**Response:** `GameState`
-
-**Errors:** 404 if game not found
-
----
-
-#### POST /game/{game_id}/turn
-
-Change player turn (manual pass).
-
-**Request Body:** None
-
-**Response:** `GameState`
-
-**Errors:** 404 if game not found
-
----
-
-#### POST /game/{game_id}/undo
-
-Undo last action. Restores previous state from history.
-
-**Request Body:** None
-
-**Response:** `GameState`
-
-**Errors:**
-- 404 if game not found
-- 400 if nothing to undo
-
----
-
-#### POST /game/{game_id}/reset
-
-Reset game and delete from database.
-
-**Request Body:** None
-
-**Response**
-
-```json
-{
-  "message": "Game reset"
-}
-```
-
-**Errors:** 404 if game not found
-
----
-
-### 4.3 Error Response Format
-
-FastAPI returns JSON for validation errors:
-
-```json
-{
-  "detail": "Error message" | [ { "loc": [...], "msg": "..." } ]
-}
-```
-
-| Status | Condition |
-|--------|-----------|
-| 400 | Invalid input, nothing to undo |
-| 404 | Game not found |
-| 422 | Request body validation failure |
+Player names are validated on the setup screen before a game is created: 1–30 characters each, and unique.
 
 ---
 
 ## 5. Scoring Engine Behavior
 
-### 5.1 Pot Validation (`can_pot_ball`)
+### 5.1 Pot Validation (`canPotBall`)
 
 | Condition | Valid? | Error |
 |-----------|--------|-------|
@@ -396,29 +236,20 @@ FastAPI returns JSON for validation errors:
 
 ## 6. Undo Mechanism
 
-- Before each state-modifying action (pot, foul, turn), current state is pushed to `game_state_history`
+- Before each state-modifying action (pot, foul, turn), the current state is added to the in-memory history, which is saved to `localStorage` with the game
 - Undo pops the last history entry and restores it as current state
 - History is not pushed for invalid pot that becomes foul (state before foul is pushed, then foul applied)
-- `canUndo` is true when history stack is non-empty
+- Undo is available when the history is non-empty
+- The history keeps the most recent 50 states
 
 ---
 
 ## 7. Configuration
 
-### 7.1 Backend (pydantic-settings)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| DATABASE_URL | `sqlite:///./snooker_scoring.db` | Database connection string |
-
-Loaded from `.env` in backend root.
-
-### 7.2 Frontend
-
 | Item | Value |
 |------|-------|
 | Dev server port | 5173 |
-| API proxy | `/api` → `http://localhost:8000` (path: `/api` → ``) |
+| Environment variables | None |
 
 ---
 
@@ -426,20 +257,18 @@ Loaded from `.env` in backend root.
 
 ### 8.1 Performance
 
-- API response time: < 200 ms for typical operations
+- Scoring actions complete instantly in the browser; no network requests are made
 - Game state JSON size: < 100 KB for typical match
 
 ### 8.2 Security
 
-- CORS: Allow `http://localhost:5173`, `http://127.0.0.1:5173`
-- No authentication in Phase 1 (single-user/local use)
-- Database URL from environment (no secrets in code)
+- No authentication; game data never leaves the device
+- No secrets or server-side configuration
 
 ### 8.3 Compatibility
 
 - Browsers: Chrome, Firefox, Safari, Edge (latest 2 versions)
-- Node.js 18+
-- Python 3.10+
+- Node.js 18+ (development only)
 
 ---
 
@@ -447,14 +276,14 @@ Loaded from `.env` in backend root.
 
 | FRD Section | SRS Section |
 |-------------|-------------|
-| FR-1 to FR-3 (Game Setup) | 3.5 Game State, 4.2 POST /game/start |
-| FR-4 to FR-9 (Scoreboard) | 3.5, 4.2, 5 |
+| FR-1 to FR-3 (Game Setup) | 3.5 Game State, 4 `createInitialGameState` |
+| FR-4 to FR-9 (Scoreboard) | 3.5, 4, 5 |
 | FR-10 to FR-16 (Scoring Engine) | 3.1, 5 |
-| FR-17, FR-18 (Turn Management) | 5.4, 4.2 turn |
+| FR-17, FR-18 (Turn Management) | 5.4, 4 `changeTurn` |
 | FR-19, FR-20 (History) | 3.4, 3.5 events |
-| Database | 3.6 |
-| API | 4 |
-| CR-001 (Foul) | 5.3, 5.4, 4.2 foul |
+| Data Storage | 3.6 |
+| Scoring Actions | 4 |
+| CR-001 (Foul) | 5.3, 5.4, 4 `recordFoul` |
 
 ---
 
@@ -462,8 +291,7 @@ Loaded from `.env` in backend root.
 
 ### Vision Integration (Phase 2)
 
-- New endpoint: `POST /game/{game_id}/vision-event` (or similar)
-- Request: `{ ball, pocket? }` from vision engine
+- The vision engine will need a way to deliver `{ ball, pocket? }` events to the device scoring the table; this is likely to need a server component, which does not exist today
 - Same validation and scoring logic as manual pot
 - May require idempotency keys for duplicate detection
 

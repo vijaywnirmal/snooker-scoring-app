@@ -25,7 +25,7 @@ The Smart Snooker Scoring System is a digital application that tracks snooker ma
 |-------|-------------|
 | **Player** | Person participating in the match |
 | **Score Operator** | Person entering scores into the system (may or may not be a player) |
-| **System** | Backend scoring engine |
+| **System** | Scoring engine running in the browser |
 | **Vision Engine** | (Future) Computer vision module that detects potted balls |
 
 ---
@@ -295,57 +295,41 @@ The Smart Snooker Scoring System is a digital application that tracks snooker ma
 
 **Display:**
 - List of events (most recent first)
-- Last 10 events shown
+- All events of the game shown in a scrolling list
 - Foul events show: player, ball on, ball involved, points
 
 ---
 
-## 10. Database Requirements
+## 10. Data Storage Requirements
 
-### Tables
+There is no database. The current game is kept in the browser's `localStorage` on the device that started it.
 
-**game_states**
-| Column | Type | Description |
-|--------|------|-------------|
-| id | UUID | Primary key |
-| state_json | JSONB | Full game state |
-| created_at | DateTime | Creation time |
-| updated_at | DateTime | Last update |
+| Item | Description |
+|------|-------------|
+| Storage key | `snooker-scoring:game:v1` |
+| `game` | Full current game state |
+| `history` | Earlier game states used for undo (most recent 50) |
 
-**game_state_history**
-| Column | Type | Description |
-|--------|------|-------------|
-| id | UUID | Primary key |
-| game_id | UUID | FK to game_states |
-| state_json | JSONB | Snapshot for undo |
-| created_at | DateTime | When saved |
+**Behavior:**
+- Saved after every action; restored when the page is reloaded or reopened
+- Removed when the game is reset
+- Visible only on the device and browser that started the game
+- If storage is unavailable, the game still works but does not survive a reload
 
 ---
 
-## 11. API Requirements
+## 11. Scoring Action Requirements
 
-### Base URL
-- Development: `http://localhost:8000`
-- Frontend proxy: `/api` → backend
+Scoring actions run in the browser; there is no API.
 
-### Endpoints
-
-| Method | Endpoint | Description | Request Body | Response |
-|--------|----------|-------------|--------------|----------|
-| POST | `/game/start` | Start new game | num_players, player_names, first_player_index, team_assignments? | game_id, state |
-| GET | `/game/state/{game_id}` | Get game state | — | GameState |
-| POST | `/game/{game_id}/pot` | Register pot (or foul if invalid) | { ball } | GameState |
-| POST | `/game/{game_id}/foul` | Record foul | { ball_involved } | GameState |
-| POST | `/game/{game_id}/turn` | Change turn | — | GameState |
-| POST | `/game/{game_id}/undo` | Undo last action | — | GameState |
-| POST | `/game/{game_id}/reset` | Reset game | — | { message } |
-
-### Error Responses
-
-| Code | Condition |
-|------|-----------|
-| 400 | Invalid input, invalid pot (when not treated as foul), nothing to undo |
-| 404 | Game not found |
+| Action | Description | Input | Result |
+|--------|-------------|-------|--------|
+| Start game | Create a new game | game type, player names, teams?, first player, RD settings? | New game state |
+| Pot | Register pot (or foul if not allowed) | ball | Updated game state |
+| Foul | Record foul | ball involved | Updated game state |
+| Change turn | Pass to the next player | — | Updated game state |
+| Undo | Restore the state before the last action | — | Previous game state |
+| Reset | Discard the game and return to setup | — | No game |
 
 ---
 
@@ -368,9 +352,8 @@ The Smart Snooker Scoring System is a digital application that tracks snooker ma
 | Invalid player input | Validation message (e.g., "Player 1 name is required") |
 | Duplicate player names | "Player names must be unique" |
 | Invalid ball sequence | Error or foul (wrong pot = foul) |
-| API failure | Retry notification / error banner |
 | Duplicate event | Ignored (idempotent where applicable) |
-| Nothing to undo | "Nothing to undo" (400) |
+| Nothing to undo | Undo button is disabled |
 
 ---
 
@@ -381,7 +364,7 @@ The Smart Snooker Scoring System is a digital application that tracks snooker ma
 **Description:** System shall receive pot events from the vision engine.
 
 **Behavior:**
-- Vision API endpoint receives detected ball and pocket
+- Vision engine reports the detected ball and pocket to the scoring engine
 - Validate event against current game state
 - Trigger scoring engine
 - Return updated state
@@ -393,7 +376,7 @@ The Smart Snooker Scoring System is a digital application that tracks snooker ma
 **Tasks:**
 - Detect ball color
 - Detect pocket event
-- Send event to scoring API
+- Send event to the scoring engine
 
 ---
 

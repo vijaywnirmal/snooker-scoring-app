@@ -41,7 +41,7 @@ snooker-scoring-app/
 └── docs/              # BRD, FRD, User Stories
 ```
 
-The documents in `docs/` were written for the original FastAPI + PostgreSQL design; the backend sections no longer apply.
+The documents in `docs/` describe the browser-only design. They cover classic snooker scoring; the Doubles, Trace and RD games are described in the Score Keepers section above.
 
 ## Quick Start
 
