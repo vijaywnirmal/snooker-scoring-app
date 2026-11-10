@@ -151,13 +151,16 @@ export default function Scoreboard({
 
   return (
     <div className="scoreboard">
-      <h1>Scoreboard</h1>
-      <p className="variant-line">
-        {variant.name}
-        {isTrace && !finished && ` · Frame ${game.frame ?? 1}${lastTwo ? ' · last two' : ''}`}
-        {isRd && ` · First to ${game.rd!.target}`}
-        {isShuffle && ` · Frame ${game.frame ?? 1} · ${game.shuffle!.redsPerPlayer} reds each · scores are frames won`}
-      </p>
+      <header className="sb-header">
+        <h1 className="sb-title">{variant.name}</h1>
+        <p className="variant-line">
+          {(isTrace || isShuffle) && !finished && <span>Frame {game.frame ?? 1}</span>}
+          {isTrace && lastTwo && !finished && <span>Last two</span>}
+          {isRd && <span>First to {game.rd!.target}</span>}
+          {isShuffle && <span>{game.shuffle!.redsPerPlayer} reds each</span>}
+          {isShuffle && <span>Scores are frames won</span>}
+        </p>
+      </header>
 
       {loading && (
         <div className="loading-overlay">
@@ -187,7 +190,7 @@ export default function Scoreboard({
         </div>
       )}
 
-      <div className="scores">
+      <div className={`scores ${game.players.length === 2 && !game.teams?.length ? 'scores--duel' : ''}`}>
         {game.players.map((p, i) => {
           const status = playerStatus(p)
           return (
@@ -216,32 +219,46 @@ export default function Scoreboard({
         </div>
       )}
 
-      <div className="game-info">
-        <p>
-          <strong>Current player:</strong> {currentPlayer?.name}
-        </p>
+      <dl className="game-info">
+        <div className="stat stat--wide">
+          <dt>At the table</dt>
+          <dd>{finished ? '—' : currentPlayer?.name}</dd>
+        </div>
         {isRd ? (
-          <p>
-            <strong>Red:</strong> {game.rd!.redValue} points, {game.rd!.redValue} off for a miss
-          </p>
-        ) : isShuffle ? (
-          <p>
-            <strong>Reds remaining:</strong> {game.redsRemaining}
-          </p>
+          <div className="stat stat--wide">
+            <dt>Red</dt>
+            <dd>
+              {game.rd!.redValue} pts · −{game.rd!.redValue} for a miss
+            </dd>
+          </div>
         ) : (
           <>
-            <p>
-              <strong>Ball on:</strong> {cleared ? '—' : (game.ballOn ?? 'red')}
-            </p>
-            <p>
-              <strong>Reds remaining:</strong> {game.redsRemaining}
-            </p>
+            {!isShuffle && (
+              <div className="stat">
+                <dt>Ball on</dt>
+                <dd>
+                  {cleared ? (
+                    '—'
+                  ) : (
+                    <>
+                      <span className={`ball-dot ball-dot--${game.ballOn ?? 'red'}`} aria-hidden="true" />
+                      {game.ballOn ?? 'red'}
+                    </>
+                  )}
+                </dd>
+              </div>
+            )}
+            <div className="stat">
+              <dt>Reds left</dt>
+              <dd>{game.redsRemaining}</dd>
+            </div>
           </>
         )}
-        <p>
-          <strong>{isShuffle ? 'Balls this visit' : 'Current break'}:</strong> {game.currentBreak}
-        </p>
-      </div>
+        <div className="stat">
+          <dt>{isShuffle ? 'This visit' : 'Break'}</dt>
+          <dd>{game.currentBreak}</dd>
+        </div>
+      </dl>
 
       {frameWinner && !finished && (
         <div className="replay-banner" role="status">
@@ -308,7 +325,7 @@ export default function Scoreboard({
               disabled={scoringLocked || (isShuffle && ball === 'red' && game.redsRemaining <= 0)}
             >
               <span className="ball-label">{ball}</span>
-              <span className="ball-value">{isShuffle ? (ball === 'red' ? '+1' : 'any') : ballPoints(ball)}</span>
+              <span className="ball-value">{isShuffle ? (ball === 'red' ? '+1' : '') : ballPoints(ball)}</span>
             </button>
           ))}
         </div>

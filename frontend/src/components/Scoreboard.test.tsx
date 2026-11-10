@@ -81,9 +81,9 @@ describe('Scoreboard', () => {
 
   it('displays ball on, reds remaining, and current break', () => {
     renderScoreboard()
-    expect(screen.getByText(/Ball on:/i)).toBeInTheDocument()
-    expect(screen.getByText(/Reds remaining:/i)).toBeInTheDocument()
-    expect(screen.getByText(/Current break:/i)).toBeInTheDocument()
+    expect(screen.getByText('Ball on')).toBeInTheDocument()
+    expect(screen.getByText('Reds left')).toBeInTheDocument()
+    expect(screen.getByText('Break')).toBeInTheDocument()
     expect(screen.getByText('14')).toBeInTheDocument()
     expect(screen.getAllByText('4').length).toBeGreaterThanOrEqual(1)
   })
