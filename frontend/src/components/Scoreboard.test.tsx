@@ -216,31 +216,41 @@ describe('Scoreboard – Shuffle', () => {
     events: [],
     players: [
       { id: 'p1', name: 'Alice', score: 0, redPots: 3 },
-      { id: 'p2', name: 'Bob', score: 1, redPots: 1 },
+      { id: 'p2', name: 'Bob', score: 1, redPots: 1, shuffleFouls: 1 },
     ],
   }
 
-  it('shows only the red, no foul button, and red progress per player', () => {
+  it('shows only the red ball and red progress per player', () => {
     render(
       <Scoreboard game={shuffleGame} canUndo={false} onPot={mockOnPot} onFoul={mockOnFoul} onChangeTurn={mockOnChangeTurn} onUndo={mockOnUndo} onReset={mockOnReset} />
     )
     expect(screen.getByTitle('Red potted')).toBeInTheDocument()
     expect(screen.queryByTitle(/black/)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Foul' })).not.toBeInTheDocument()
     expect(screen.getByText('Reds 3/3 · token drawn')).toBeInTheDocument()
-    expect(screen.getByText('Reds 1/3')).toBeInTheDocument()
+    expect(screen.getByText('Reds 1/3 · colour 0/2')).toBeInTheDocument()
   })
 
   it('lets only token holders win the frame', async () => {
     const user = userEvent.setup()
-    const onWinFrame = vi.fn()
+    const onColourPot = vi.fn()
     render(
-      <Scoreboard game={shuffleGame} canUndo={false} onPot={mockOnPot} onFoul={mockOnFoul} onChangeTurn={mockOnChangeTurn} onUndo={mockOnUndo} onReset={mockOnReset} onWinFrame={onWinFrame} />
+      <Scoreboard game={shuffleGame} canUndo={false} onPot={mockOnPot} onFoul={mockOnFoul} onChangeTurn={mockOnChangeTurn} onUndo={mockOnUndo} onReset={mockOnReset} onColourPot={onColourPot} />
     )
-    await user.click(screen.getByRole('button', { name: /Frame Won/ }))
+    await user.click(screen.getByRole('button', { name: /Own Colour Potted/ }))
     expect(screen.queryByRole('button', { name: 'Bob wins the frame' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Alice wins the frame' }))
-    expect(onWinFrame).toHaveBeenCalledWith('p1')
+    expect(onColourPot).toHaveBeenCalledWith('p1')
+  })
+
+  it('records a foul straight away, without asking for a ball', async () => {
+    const user = userEvent.setup()
+    const onFoul = vi.fn()
+    render(
+      <Scoreboard game={shuffleGame} canUndo={false} onPot={mockOnPot} onFoul={onFoul} onChangeTurn={mockOnChangeTurn} onUndo={mockOnUndo} onReset={mockOnReset} />
+    )
+    await user.click(screen.getByRole('button', { name: 'Foul' }))
+    expect(onFoul).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('Select ball involved in foul')).not.toBeInTheDocument()
   })
 
   it('locks scoring once the frame is won', () => {
@@ -248,7 +258,8 @@ describe('Scoreboard – Shuffle', () => {
       <Scoreboard game={{ ...shuffleGame, frameWinnerId: 'p1' }} canUndo={false} onPot={mockOnPot} onFoul={mockOnFoul} onChangeTurn={mockOnChangeTurn} onUndo={mockOnUndo} onReset={mockOnReset} />
     )
     expect(screen.getByTitle('Red potted')).toBeDisabled()
-    expect(screen.getByRole('button', { name: /Frame Won/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Own Colour Potted/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Foul' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'New Frame' })).toBeEnabled()
     expect(screen.getByRole('status')).toHaveTextContent('Alice wins frame 1')
   })

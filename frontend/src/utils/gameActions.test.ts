@@ -26,7 +26,7 @@ import {
   replayFoul,
   shuffleNewFrame,
   sitOut,
-  winShuffleFrame,
+  potOwnColour,
 } from './gameActions'
 import { createInitialGameState, defaultRedsPerPlayer, maxRedsPerPlayer, shuffled } from './gameState'
 
@@ -519,28 +519,61 @@ describe('Shuffle', () => {
     let g = potReds(shuffleGame(['A', 'B'], 2), 1)
     expect(g.players[0].redPots).toBe(1)
     expect(g.redsRemaining).toBe(14)
-    expect(winShuffleFrame(g, g.players[0].id)).toBe(g) // no token yet
+    expect(potOwnColour(g, g.players[0].id)).toBe(g) // no token yet
 
     g = registerPot(g, 'red')
     expect(g.events.at(-1)?.description).toContain('draws a colour token')
     expect(g.players[0].score).toBe(0)
   })
 
-  it('ignores colours and fouls', () => {
+  it('ignores colour buttons', () => {
     const g = shuffleGame()
     expect(registerPot(g, 'black')).toBe(g)
-    expect(recordFoul(g, 'cue_ball')).toBe(g)
+  })
+
+  it('makes a fouler pot their colour in a corner once more for each foul', () => {
+    let g = potReds(shuffleGame(['A', 'B'], 1), 1)
+    const a = g.players[0].id
+    g = recordFoul(g, 'cue_ball')
+    expect(g.players[0].shuffleFouls).toBe(1)
+    expect(g.players[0].score).toBe(0)
+    expect(g.currentPlayerIndex).toBe(1)
+    expect(g.events.at(-1)?.description).toContain('needs 2 corner pots')
+
+    g = potOwnColour(g, a)
+    expect(g.players[0].colourPots).toBe(1)
+    expect(g.frameWinnerId).toBeUndefined()
+
+    g = potOwnColour(g, a)
+    expect(g.frameWinnerId).toBe(a)
+    expect(g.players[0].score).toBe(1)
+
+    // Fouls and colour pots don't carry into the next frame
+    g = newFrame(g)
+    expect(g.players[0].shuffleFouls).toBeUndefined()
+    expect(g.players[0].colourPots).toBeUndefined()
+  })
+
+  it('counts fouls made before the token is drawn', () => {
+    let g = recordFoul(shuffleGame(['A', 'B'], 1), 'cue_ball')
+    g = changeTurn(g)
+    g = registerPot(g, 'red')
+    const a = g.players[0].id
+    g = potOwnColour(g, a)
+    expect(g.frameWinnerId).toBeUndefined()
+    expect(potOwnColour(g, a).frameWinnerId).toBe(a)
   })
 
   it('awards the frame to a token holder and locks the table until a new frame', () => {
     let g = potReds(shuffleGame(['A', 'B', 'C'], 1), 1)
     const a = g.players[0].id
-    g = winShuffleFrame(g, a)
+    g = potOwnColour(g, a)
     expect(g.frameWinnerId).toBe(a)
     expect(g.players[0].score).toBe(1)
     expect(registerPot(g, 'red')).toBe(g)
     expect(changeTurn(g)).toBe(g)
-    expect(winShuffleFrame(g, a)).toBe(g)
+    expect(potOwnColour(g, a)).toBe(g)
+    expect(recordFoul(g, 'cue_ball')).toBe(g)
 
     g = newFrame(g)
     expect(g.frame).toBe(2)

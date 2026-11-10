@@ -44,7 +44,7 @@ export const VARIANTS: VariantInfo[] = [
   {
     id: 'shuffle',
     name: 'Shuffle',
-    summary: 'Pot your share of reds, then draw a secret colour token. First to pot their own colour in a corner pocket wins the frame.',
+    summary: 'Pot your share of reds, then draw a secret colour token. First to pot their own colour in a corner pocket wins the frame; each foul means one more pot.',
     minPlayers: 2,
     maxPlayers: 8,
   },

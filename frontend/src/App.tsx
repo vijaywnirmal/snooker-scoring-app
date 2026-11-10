@@ -12,7 +12,7 @@ import {
   sitOut,
   quitGame,
   shuffleNewFrame,
-  winShuffleFrame,
+  potOwnColour,
 } from './utils/gameActions'
 import { loadSavedGame, saveGame, MAX_HISTORY, type SavedGame } from './services/gameStorage'
 
@@ -64,8 +64,8 @@ function App() {
     applyAction((g) => (g.variant === 'shuffle' ? shuffleNewFrame(g, reshuffle) : newFrame(g)))
   }
 
-  const handleWinFrame = (winnerId: string) => {
-    applyAction((g) => winShuffleFrame(g, winnerId))
+  const handleColourPot = (playerId: string) => {
+    applyAction((g) => potOwnColour(g, playerId))
   }
 
   const handleSitOut = (sitterId?: string) => {
@@ -104,7 +104,7 @@ function App() {
           onNewFrame={handleNewFrame}
           onSitOut={handleSitOut}
           onQuit={handleQuit}
-          onWinFrame={handleWinFrame}
+          onColourPot={handleColourPot}
         />
       ) : (
         <GameSetup onGameStart={handleGameStart} />

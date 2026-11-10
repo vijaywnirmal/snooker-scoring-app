@@ -331,7 +331,7 @@ export default function GameSetup({ onGameStart }: GameSetupProps) {
             {numPlayers} × {redsPerPlayer} = {numPlayers * redsPerPlayer} reds to pot,{' '}
             {Math.max(0, 15 - numPlayers * redsPerPlayer)} left on the table. After potting their reds a
             player draws a secret colour token (2 to 7) and wins the frame by potting that colour in a corner pocket. It
-            can never go in a centre pocket.
+            can never go in a centre pocket. Each foul means potting their colour in a corner one more time.
           </p>
         </section>
       )}

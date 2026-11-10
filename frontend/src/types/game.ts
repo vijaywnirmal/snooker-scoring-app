@@ -61,6 +61,9 @@ export interface Player {
   /** RD efficiency barrier counters; Shuffle uses redPots for reds potted this frame */
   redAttempts?: number
   redPots?: number
+  /** Shuffle: fouls this frame (each one adds a corner pot of their colour) and corner pots of their colour made */
+  shuffleFouls?: number
+  colourPots?: number
 }
 
 export interface Team {

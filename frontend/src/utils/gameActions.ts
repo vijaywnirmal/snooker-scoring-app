@@ -136,8 +136,8 @@ export function potBall(game: GameState, ball: BallType): { success: boolean; ga
 /** Record foul with ball_on and ball_involved (CR-001) */
 export function recordFoul(game: GameState, ballInvolved: FoulBallType): GameState {
   if (game.variant === 'rd') return rdFoul(game, ballInvolved)
-  // Shuffle has no foul scoring; the next player simply takes the table
-  if (game.variant === 'shuffle' || game.tableCleared) return game
+  if (game.variant === 'shuffle') return shuffleFoul(game)
+  if (game.tableCleared) return game
 
   const next = cloneGame(game)
   const foulerIndex = next.currentPlayerIndex
@@ -403,21 +403,61 @@ function shufflePot(game: GameState, ball: BallType): GameState {
   return next
 }
 
-/** A token holder potted their own colour in a corner pocket: they win the frame */
-export function winShuffleFrame(game: GameState, winnerId: string): GameState {
+/** Corner pots of their own colour a player needs to win: one, plus one for every foul this frame */
+export function colourPotsNeeded(player: Player): number {
+  return 1 + (player.shuffleFouls ?? 0)
+}
+
+/** Shuffle: a foul ends the turn and the fouler owes one more corner pot of their colour */
+function shuffleFoul(game: GameState): GameState {
+  if (game.frameWinnerId) return game
+  const next = cloneGame(game)
+  const fouler = next.players[next.currentPlayerIndex]
+  fouler.shuffleFouls = (fouler.shuffleFouls ?? 0) + 1
+  const owed = colourPotsNeeded(fouler) - (fouler.colourPots ?? 0)
+
+  addEvent(next, {
+    type: 'foul',
+    playerId: fouler.id,
+    points: 0,
+    description: `${fouler.name} fouled and now needs ${owed} corner pot${owed === 1 ? '' : 's'} of their colour`,
+  })
+  passTurn(next)
+  delete next.pendingReplay
+  return next
+}
+
+/**
+ * A token holder potted their own colour in a corner pocket.
+ * The pot that clears what they owe wins the frame; an earlier one counts down and the colour is respotted.
+ */
+export function potOwnColour(game: GameState, playerId: string): GameState {
   if (game.variant !== 'shuffle' || game.frameWinnerId) return game
   const next = cloneGame(game)
-  const winner = next.players.find((p) => p.id === winnerId)
-  if (!winner || !hasToken(next, winner)) return game
+  const player = next.players.find((p) => p.id === playerId)
+  if (!player || !hasToken(next, player)) return game
 
-  winner.score += 1
-  next.frameWinnerId = winner.id
+  player.colourPots = (player.colourPots ?? 0) + 1
+  const needed = colourPotsNeeded(player)
+  if (player.colourPots < needed) {
+    addEvent(next, {
+      type: 'pot',
+      playerId: player.id,
+      points: 0,
+      description: `${player.name} potted their colour in a corner (${player.colourPots}/${needed}); it is respotted`,
+    })
+    delete next.pendingReplay
+    return next
+  }
+
+  player.score += 1
+  next.frameWinnerId = player.id
   next.currentBreak = 0
   addEvent(next, {
     type: 'frame',
-    playerId: winner.id,
+    playerId: player.id,
     points: 1,
-    description: `${winner.name} potted their colour in a corner pocket and wins frame ${next.frame ?? 1}`,
+    description: `${player.name} potted their colour in a corner pocket and wins frame ${next.frame ?? 1}`,
   })
   delete next.pendingReplay
   return next
@@ -438,7 +478,11 @@ export function shuffleNewFrame(game: GameState, reshuffle = false, random: () =
     description: game.frameWinnerId ? `Frame ${next.frame ?? 1} ended` : `Frame ${next.frame ?? 1} was reset`,
   })
 
-  for (const p of next.players) p.redPots = 0
+  for (const p of next.players) {
+    p.redPots = 0
+    delete p.shuffleFouls
+    delete p.colourPots
+  }
   if (reshuffle) {
     next.players = shuffled(next.players, random)
     next.frameBreakerIndex = 0
