@@ -24,9 +24,11 @@ import {
   recordFoul,
   registerPot,
   replayFoul,
+  shuffleNewFrame,
   sitOut,
+  winShuffleFrame,
 } from './gameActions'
-import { createInitialGameState } from './gameState'
+import { createInitialGameState, defaultRedsPerPlayer, maxRedsPerPlayer, shuffled } from './gameState'
 
 function twoPlayerState(overrides: Partial<GameState> = {}): GameState {
   return { ...createInitialGameState(['Alice', 'Bob']), ...overrides }
@@ -490,5 +492,74 @@ describe('createInitialGameState', () => {
     expect(game.teams).toHaveLength(2)
     expect(game.teams![0].playerIds).toEqual([game.players[0].id, game.players[1].id])
     expect(game.teams![1].playerIds).toEqual([game.players[2].id, game.players[3].id])
+  })
+})
+
+describe('Shuffle', () => {
+  function shuffleGame(names = ['A', 'B', 'C'], redsPerPlayer?: number): GameState {
+    return createInitialGameState(names, undefined, 0, {
+      variant: 'shuffle',
+      shuffle: redsPerPlayer ? { redsPerPlayer } : undefined,
+    })
+  }
+
+  function potReds(game: GameState, count: number): GameState {
+    let g = game
+    for (let i = 0; i < count; i++) g = registerPot(g, 'red')
+    return g
+  }
+
+  it('shares 12 reds between 2 to 4 players and at least one each beyond that', () => {
+    expect([2, 3, 4, 5, 6, 8].map(defaultRedsPerPlayer)).toEqual([6, 4, 3, 2, 2, 1])
+    expect(maxRedsPerPlayer(2)).toBe(7)
+    expect(shuffleGame().shuffle).toEqual({ redsPerPlayer: 4 })
+  })
+
+  it('counts reds towards the player and draws a token at the target', () => {
+    let g = potReds(shuffleGame(['A', 'B'], 2), 1)
+    expect(g.players[0].redPots).toBe(1)
+    expect(g.redsRemaining).toBe(14)
+    expect(winShuffleFrame(g, g.players[0].id)).toBe(g) // no token yet
+
+    g = registerPot(g, 'red')
+    expect(g.events.at(-1)?.description).toContain('draws a colour token')
+    expect(g.players[0].score).toBe(0)
+  })
+
+  it('ignores colours and fouls', () => {
+    const g = shuffleGame()
+    expect(registerPot(g, 'black')).toBe(g)
+    expect(recordFoul(g, 'cue_ball')).toBe(g)
+  })
+
+  it('awards the frame to a token holder and locks the table until a new frame', () => {
+    let g = potReds(shuffleGame(['A', 'B', 'C'], 1), 1)
+    const a = g.players[0].id
+    g = winShuffleFrame(g, a)
+    expect(g.frameWinnerId).toBe(a)
+    expect(g.players[0].score).toBe(1)
+    expect(registerPot(g, 'red')).toBe(g)
+    expect(changeTurn(g)).toBe(g)
+    expect(winShuffleFrame(g, a)).toBe(g)
+
+    g = newFrame(g)
+    expect(g.frame).toBe(2)
+    expect(g.frameWinnerId).toBeUndefined()
+    expect(g.redsRemaining).toBe(15)
+    expect(g.players.map((p) => p.redPots)).toEqual([0, 0, 0])
+    expect(g.players[0].score).toBe(1)
+    // The break passes to the next player
+    expect(g.currentPlayerIndex).toBe(1)
+  })
+
+  it('can reshuffle the playing order for a new frame', () => {
+    const g = shuffleNewFrame(shuffleGame(['A', 'B', 'C']), true, () => 0)
+    expect(g.players.map((p) => p.name)).toEqual(['B', 'C', 'A'])
+    expect(g.currentPlayerIndex).toBe(0)
+  })
+
+  it('shuffles with every element kept', () => {
+    const out = shuffled([1, 2, 3, 4, 5])
+    expect([...out].sort()).toEqual([1, 2, 3, 4, 5])
   })
 })

@@ -7,7 +7,7 @@ import { useState } from 'react'
 import type { GameState, BallType, FoulBallType, GameEvent, Player } from '../types/game'
 import { BALL_VALUES } from '../types/game'
 import { getVariant } from '../variants'
-import { activePlayers, canQuit, canSitOut, frameLeaders, rdBarrierMet } from '../utils/gameActions'
+import { activePlayers, canQuit, canSitOut, frameLeaders, hasToken, rdBarrierMet } from '../utils/gameActions'
 
 const BALLS: BallType[] = ['red', 'yellow', 'green', 'brown', 'blue', 'pink', 'black']
 
@@ -26,8 +26,10 @@ interface ScoreboardProps {
   onReplayFoul?: () => void
   /** RD: the red was attempted and missed */
   onMissRed?: () => void
-  /** Trace: start a new frame with scores carried over */
-  onNewFrame?: () => void
+  /** Trace and Shuffle: start a new frame with scores carried over; Shuffle can reshuffle the order */
+  onNewFrame?: (reshuffle?: boolean) => void
+  /** Shuffle: a token holder potted their own colour in a corner pocket */
+  onWinFrame?: (winnerId: string) => void
   /** Trace: the highest scorer sits out; sitterId settles a tie */
   onSitOut?: (sitterId?: string) => void
   /** Trace: one of the last two quits and loses */
@@ -59,20 +61,25 @@ export default function Scoreboard({
   onNewFrame,
   onSitOut,
   onQuit,
+  onWinFrame,
 }: ScoreboardProps) {
   const [showFoulModal, setShowFoulModal] = useState(false)
   const [showSitOutModal, setShowSitOutModal] = useState(false)
   const [showQuitModal, setShowQuitModal] = useState(false)
+  const [showWinModal, setShowWinModal] = useState(false)
   const currentPlayer = game.players[game.currentPlayerIndex]
   const lastEvent = game.events[game.events.length - 1]
   const variant = getVariant(game.variant)
   const isRd = game.variant === 'rd' && !!game.rd
   const isTrace = game.variant === 'trace'
+  const isShuffle = game.variant === 'shuffle' && !!game.shuffle
+  const frameWinner = game.players.find((p) => p.id === game.frameWinnerId)
+  const tokenHolders = isShuffle ? game.players.filter((p) => hasToken(game, p)) : []
   const finished = game.status === 'finished'
   const locked = loading || finished
   const cleared = !!game.tableCleared && !finished
   // Nothing left to pot until a new frame starts
-  const scoringLocked = locked || cleared
+  const scoringLocked = locked || cleared || !!frameWinner
   const fouler = game.pendingReplay ? game.players[game.pendingReplay.playerIndex] : undefined
   const winner = game.players.find((p) => p.id === game.winnerId)
 
@@ -108,6 +115,12 @@ export default function Scoreboard({
     onQuit?.(quitterId)
   }
 
+  const handleWinFrame = (winnerId: string) => {
+    setShowWinModal(false)
+    onClearError?.()
+    onWinFrame?.(winnerId)
+  }
+
   const handleSitOut = (sitterId?: string) => {
     setShowSitOutModal(false)
     onClearError?.()
@@ -117,6 +130,12 @@ export default function Scoreboard({
   const playerStatus = (p: Player) => {
     if (isRd) {
       return `Reds ${p.redPots ?? 0}/${game.rd!.minPots} · Tries ${p.redAttempts ?? 0}/${game.rd!.minAttempts}${rdBarrierMet(game, p) ? ' ✓' : ''}`
+    }
+    if (isShuffle) {
+      const target = game.shuffle!.redsPerPlayer
+      const reds = `Reds ${Math.min(p.redPots ?? 0, target)}/${target}`
+      if (p.id === game.frameWinnerId) return `${reds} · won frame ${game.frame ?? 1}`
+      return hasToken(game, p) ? `${reds} · token drawn` : reds
     }
     if (isTrace && p.finishPosition) {
       return p.finishPosition === game.players.length ? 'Lost' : `Safe · ${ordinal(p.finishPosition)}`
@@ -134,6 +153,7 @@ export default function Scoreboard({
         {variant.name}
         {isTrace && !finished && ` · Frame ${game.frame ?? 1}${lastTwo ? ' · last two' : ''}`}
         {isRd && ` · First to ${game.rd!.target}`}
+        {isShuffle && ` · Frame ${game.frame ?? 1} · ${game.shuffle!.redsPerPlayer} reds each · scores are frames won`}
       </p>
 
       {loading && (
@@ -201,6 +221,10 @@ export default function Scoreboard({
           <p>
             <strong>Red:</strong> {game.rd!.redValue} points, {game.rd!.redValue} off for a miss
           </p>
+        ) : isShuffle ? (
+          <p>
+            <strong>Reds remaining:</strong> {game.redsRemaining}
+          </p>
         ) : (
           <>
             <p>
@@ -212,9 +236,18 @@ export default function Scoreboard({
           </>
         )}
         <p>
-          <strong>Current break:</strong> {game.currentBreak}
+          <strong>{isShuffle ? 'Reds this visit' : 'Current break'}:</strong> {game.currentBreak}
         </p>
       </div>
+
+      {frameWinner && !finished && (
+        <div className="replay-banner" role="status">
+          <span>
+            {frameWinner.name} wins frame {game.frame ?? 1}. They show their token to the table; start a new frame to
+            carry on.
+          </span>
+        </div>
+      )}
 
       {cleared && (
         <div className="replay-banner" role="status">
@@ -262,17 +295,17 @@ export default function Scoreboard({
       <div className="ball-buttons">
         <h3>Ball potted</h3>
         <div className="ball-grid">
-          {BALLS.map((ball) => (
+          {(isShuffle ? (['red'] as BallType[]) : BALLS).map((ball) => (
             <button
               key={ball}
               type="button"
               className={`ball-btn ball-${ball}`}
               onClick={() => handlePot(ball)}
-              title={`${ball} (${ballPoints(ball)} pts)`}
-              disabled={scoringLocked}
+              title={isShuffle ? 'Red potted' : `${ball} (${ballPoints(ball)} pts)`}
+              disabled={scoringLocked || (isShuffle && game.redsRemaining <= 0)}
             >
               <span className="ball-label">{ball}</span>
-              <span className="ball-value">{ballPoints(ball)}</span>
+              <span className="ball-value">{isShuffle ? '+1' : ballPoints(ball)}</span>
             </button>
           ))}
         </div>
@@ -345,6 +378,28 @@ export default function Scoreboard({
         </div>
       )}
 
+      {showWinModal && (
+        <div className="modal-overlay" onClick={() => setShowWinModal(false)}>
+          <div className="modal frame-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Who potted their colour?</h3>
+            <p>
+              The winner potted the colour on their token in a corner pocket and shows the token to the table. A centre
+              pocket doesn't count.
+            </p>
+            <div className="modal-choices">
+              {tokenHolders.map((p) => (
+                <button key={p.id} type="button" className="modal-confirm" onClick={() => handleWinFrame(p.id)}>
+                  {p.name} wins the frame
+                </button>
+              ))}
+            </div>
+            <button type="button" className="modal-cancel" onClick={() => setShowWinModal(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {showQuitModal && (
         <div className="modal-overlay" onClick={() => setShowQuitModal(false)}>
           <div className="modal frame-modal" onClick={(e) => e.stopPropagation()}>
@@ -375,14 +430,16 @@ export default function Scoreboard({
             Red missed
           </button>
         )}
-        <button
-          type="button"
-          className="control-btn foul-btn"
-          onClick={() => setShowFoulModal(true)}
-          disabled={scoringLocked}
-        >
-          Foul
-        </button>
+        {!isShuffle && (
+          <button
+            type="button"
+            className="control-btn foul-btn"
+            onClick={() => setShowFoulModal(true)}
+            disabled={scoringLocked}
+          >
+            Foul
+          </button>
+        )}
         <button
           type="button"
           className="control-btn turn-btn"
@@ -439,6 +496,41 @@ export default function Scoreboard({
                 ? 'The highest scorer can be sat out at any point.'
                 : 'A player can be sat out from frame 2.'}
             {!cleared && ' A new frame can start once the table is cleared.'}
+          </p>
+        </div>
+      )}
+
+      {isShuffle && !finished && (
+        <div className="trace-actions">
+          <div className="trace-buttons">
+            <button
+              type="button"
+              className="end-frame-btn shuffle-win-btn"
+              onClick={() => setShowWinModal(true)}
+              disabled={locked || !!frameWinner || tokenHolders.length === 0}
+            >
+              Colour Potted · Frame Won
+            </button>
+            <button
+              type="button"
+              className="end-frame-btn"
+              onClick={() => handleControlClick(() => onNewFrame?.(false))}
+              disabled={locked}
+            >
+              New Frame
+            </button>
+            <button
+              type="button"
+              className="end-frame-btn"
+              onClick={() => handleControlClick(() => onNewFrame?.(true))}
+              disabled={locked}
+            >
+              New Frame, Shuffle Order
+            </button>
+          </div>
+          <p className="trace-hint">
+            After potting {game.shuffle!.redsPerPlayer} red{game.shuffle!.redsPerPlayer === 1 ? '' : 's'} a player draws
+            a secret colour token. They win the frame by potting that colour in a corner pocket, never a centre pocket.
           </p>
         </div>
       )}

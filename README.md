@@ -20,6 +20,9 @@ The setup screen offers a catalogue of games (`frontend/src/variants.ts`):
 | **Doubles** | 2–6 | Individuals, or any number of teams. Teams take turns at the table and players rotate within their team. |
 | **Trace** | 3–6 | Scores carry over from frame to frame and everyone plays the first frame. A new frame can start once the table is cleared. From the second frame, the player with the highest total can be sat out as safe at any point. The last two play on until one of them quits, and that player loses. |
 | **RD** | 2–6 | One red worth an agreed value (typically 10 or 15), colours at face value, potted in any order. First to the agreed target wins, but only once they have made the agreed minimum red attempts and red pots. |
+| **Shuffle** | 2–8 | Each player must pot an agreed number of reds (default: 12 shared equally – 6, 4 or 3 each for 2–4 players, leaving 3 on the table; at least 1 each with more players). Once they have, they draw a secret token numbered 2–7 (yellow to black), kept hidden off the app. The first player to pot their own colour in a corner pocket – never a centre pocket – wins the frame and shows their token. The score keeper records the win and starts a new frame (optionally reshuffling the order). Scores are frames won. |
+
+Playing order: at setup the players can be put in any order, or the whole order shuffled at random (Fisher–Yates, so every order is equally likely). The first player in the order breaks. This applies to every game; in team games, team members stay on their own team.
 
 Foul rules:
 
@@ -41,7 +44,7 @@ snooker-scoring-app/
 └── docs/              # BRD, FRD, User Stories
 ```
 
-The documents in `docs/` describe the browser-only design. They cover classic snooker scoring; the Doubles, Trace and RD games are described in the Score Keepers section above.
+The documents in `docs/` describe the browser-only design. They cover classic snooker scoring; the Doubles, Trace, RD and Shuffle games are described in the Score Keepers section above.
 
 ## Quick Start
 

@@ -2,7 +2,18 @@ import { useEffect, useState } from 'react'
 import type { GameState, BallType, FoulBallType } from './types/game'
 import GameSetup from './components/GameSetup'
 import Scoreboard from './components/Scoreboard'
-import { registerPot, recordFoul, changeTurn, replayFoul, missRed, newFrame, sitOut, quitGame } from './utils/gameActions'
+import {
+  registerPot,
+  recordFoul,
+  changeTurn,
+  replayFoul,
+  missRed,
+  newFrame,
+  sitOut,
+  quitGame,
+  shuffleNewFrame,
+  winShuffleFrame,
+} from './utils/gameActions'
 import { loadSavedGame, saveGame, MAX_HISTORY, type SavedGame } from './services/gameStorage'
 
 function App() {
@@ -49,8 +60,12 @@ function App() {
     applyAction(missRed)
   }
 
-  const handleNewFrame = () => {
-    applyAction(newFrame)
+  const handleNewFrame = (reshuffle = false) => {
+    applyAction((g) => (g.variant === 'shuffle' ? shuffleNewFrame(g, reshuffle) : newFrame(g)))
+  }
+
+  const handleWinFrame = (winnerId: string) => {
+    applyAction((g) => winShuffleFrame(g, winnerId))
   }
 
   const handleSitOut = (sitterId?: string) => {
@@ -89,6 +104,7 @@ function App() {
           onNewFrame={handleNewFrame}
           onSitOut={handleSitOut}
           onQuit={handleQuit}
+          onWinFrame={handleWinFrame}
         />
       ) : (
         <GameSetup onGameStart={handleGameStart} />

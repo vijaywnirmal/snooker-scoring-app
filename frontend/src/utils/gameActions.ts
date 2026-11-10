@@ -1,10 +1,11 @@
 /**
- * Game actions - pot, foul, change turn, plus variant rules (replay after foul, Trace frames, RD)
+ * Game actions - pot, foul, change turn, plus variant rules (replay after foul, Trace frames, RD, Shuffle)
  * User Stories: 3.1, 3.2, 4.1, 4.2, 4.3, 6.1 | CR-001
  */
 
 import type { BallOnType, BallType, FoulBallType, GameState, GameEvent, Player } from '../types/game'
 import { getBallValue, canPotBall, calculateFoulPoints, getBallOn, getFoulBallValue } from '../services/scoringEngine'
+import { FULL_RACK, shuffled } from './gameState'
 
 function generateId(): string {
   return crypto.randomUUID()
@@ -83,7 +84,7 @@ function passTurn(next: GameState): void {
   if (turn.teamTurn) next.teamTurn = turn.teamTurn
   next.currentBreak = 0
   next.lastPottedColor = undefined
-  next.ballOn = next.variant === 'rd' ? undefined : getBallOn(next.redsRemaining, undefined)
+  next.ballOn = next.variant === 'rd' || next.variant === 'shuffle' ? undefined : getBallOn(next.redsRemaining, undefined)
 }
 
 /** Update ball_on after a pot (CR-001) */
@@ -135,7 +136,8 @@ export function potBall(game: GameState, ball: BallType): { success: boolean; ga
 /** Record foul with ball_on and ball_involved (CR-001) */
 export function recordFoul(game: GameState, ballInvolved: FoulBallType): GameState {
   if (game.variant === 'rd') return rdFoul(game, ballInvolved)
-  if (game.tableCleared) return game
+  // Shuffle has no foul scoring; the next player simply takes the table
+  if (game.variant === 'shuffle' || game.tableCleared) return game
 
   const next = cloneGame(game)
   const foulerIndex = next.currentPlayerIndex
@@ -190,13 +192,14 @@ export function replayFoul(game: GameState): GameState {
 /** Pot a ball; a pot that isn't allowed counts as a foul on that ball (CR-001) */
 export function registerPot(game: GameState, ball: BallType): GameState {
   if (game.variant === 'rd') return rdPot(game, ball)
+  if (game.variant === 'shuffle') return shufflePot(game, ball)
   if (game.tableCleared) return game
   const result = potBall(game, ball)
   return result.success && result.game ? result.game : recordFoul(game, ball)
 }
 
 export function changeTurn(game: GameState): GameState {
-  if (game.tableCleared) return game
+  if (game.tableCleared || game.frameWinnerId) return game
   const next = cloneGame(game)
   passTurn(next)
   delete next.pendingReplay
@@ -229,6 +232,7 @@ export function canQuit(game: GameState): boolean {
 
 /** Once the table is cleared, start a new frame: fresh rack, same players, scores carried over */
 export function newFrame(game: GameState): GameState {
+  if (game.variant === 'shuffle') return shuffleNewFrame(game)
   if (!game.tableCleared) return game
   const next = cloneGame(game)
 
@@ -366,4 +370,89 @@ function rdFoul(game: GameState, ballInvolved: FoulBallType): GameState {
   const points = ballInvolved === 'red' && game.rd ? game.rd.redValue : Math.max(4, getFoulBallValue(ballInvolved))
   const label = ballInvolved === 'cue_ball' ? 'cue ball' : ballInvolved
   return rdPenalty(game, points, (name) => `${name} committed FOUL on ${label} (-${points})`)
+}
+
+// --- Shuffle: pot your share of reds, draw a secret colour token, pot it in a corner to win ---
+
+/** The player has potted their share of reds and draws (or has drawn) a colour token */
+export function hasToken(game: GameState, player: Player): boolean {
+  return !!game.shuffle && (player.redPots ?? 0) >= game.shuffle.redsPerPlayer
+}
+
+/** Only reds are recorded; colours are respotted and score nothing */
+function shufflePot(game: GameState, ball: BallType): GameState {
+  if (ball !== 'red' || game.frameWinnerId || game.redsRemaining <= 0 || !game.shuffle) return game
+  const next = cloneGame(game)
+  const player = next.players[next.currentPlayerIndex]
+  player.redPots = (player.redPots ?? 0) + 1
+  next.redsRemaining -= 1
+  next.currentBreak += 1
+
+  const target = game.shuffle.redsPerPlayer
+  const reached = player.redPots === target
+  addEvent(next, {
+    type: 'pot',
+    playerId: player.id,
+    ball,
+    points: 0,
+    description: reached
+      ? `${player.name} potted red ${player.redPots}/${target} and draws a colour token`
+      : `${player.name} potted red ${Math.min(player.redPots, target)}/${target}`,
+  })
+  delete next.pendingReplay
+  return next
+}
+
+/** A token holder potted their own colour in a corner pocket: they win the frame */
+export function winShuffleFrame(game: GameState, winnerId: string): GameState {
+  if (game.variant !== 'shuffle' || game.frameWinnerId) return game
+  const next = cloneGame(game)
+  const winner = next.players.find((p) => p.id === winnerId)
+  if (!winner || !hasToken(next, winner)) return game
+
+  winner.score += 1
+  next.frameWinnerId = winner.id
+  next.currentBreak = 0
+  addEvent(next, {
+    type: 'frame',
+    playerId: winner.id,
+    points: 1,
+    description: `${winner.name} potted their colour in a corner pocket and wins frame ${next.frame ?? 1}`,
+  })
+  delete next.pendingReplay
+  return next
+}
+
+/**
+ * Re-rack for a new Shuffle frame: reds and tokens reset, frames won are kept.
+ * The break passes to the next player, or with reshuffle the playing order is randomised again.
+ */
+export function shuffleNewFrame(game: GameState, reshuffle = false, random: () => number = Math.random): GameState {
+  if (game.variant !== 'shuffle') return game
+  const next = cloneGame(game)
+
+  addEvent(next, {
+    type: 'frame',
+    playerId: next.players[next.currentPlayerIndex].id,
+    points: 0,
+    description: game.frameWinnerId ? `Frame ${next.frame ?? 1} ended` : `Frame ${next.frame ?? 1} was reset`,
+  })
+
+  for (const p of next.players) p.redPots = 0
+  if (reshuffle) {
+    next.players = shuffled(next.players, random)
+    next.frameBreakerIndex = 0
+  } else {
+    next.frameBreakerIndex = ((next.frameBreakerIndex ?? next.currentPlayerIndex) + 1) % next.players.length
+  }
+  next.currentPlayerIndex = next.frameBreakerIndex
+  next.frame = (next.frame ?? 1) + 1
+  next.redsRemaining = FULL_RACK
+  next.currentBreak = 0
+  next.lastPottedColor = undefined
+  next.ballOn = undefined
+  delete next.frameWinnerId
+  delete next.pendingReplay
+  delete next.tableCleared
+  return next
 }

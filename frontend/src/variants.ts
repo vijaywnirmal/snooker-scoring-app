@@ -41,6 +41,13 @@ export const VARIANTS: VariantInfo[] = [
     minPlayers: 2,
     maxPlayers: 6,
   },
+  {
+    id: 'shuffle',
+    name: 'Shuffle',
+    summary: 'Pot your share of reds, then draw a secret colour token. First to pot their own colour in a corner pocket wins the frame.',
+    minPlayers: 2,
+    maxPlayers: 8,
+  },
 ]
 
 export function getVariant(id: GameVariant): VariantInfo {

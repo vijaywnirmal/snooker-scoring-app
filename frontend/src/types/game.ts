@@ -31,7 +31,7 @@ export const FINAL_COLOR_SEQUENCE: BallType[] = [
 ]
 
 /** Score keeper chosen at setup */
-export type GameVariant = 'snooker' | 'doubles' | 'trace' | 'rd'
+export type GameVariant = 'snooker' | 'doubles' | 'trace' | 'rd' | 'shuffle'
 
 /** RD settings agreed before the game */
 export interface RdSettings {
@@ -44,6 +44,12 @@ export interface RdSettings {
   minPots: number
 }
 
+/** Shuffle settings agreed before the game */
+export interface ShuffleSettings {
+  /** Reds each player must pot before drawing their secret colour token */
+  redsPerPlayer: number
+}
+
 export interface Player {
   id: string
   name: string
@@ -52,7 +58,7 @@ export interface Player {
   /** Trace: safe and sitting out, with the place they finished in */
   sitting?: boolean
   finishPosition?: number
-  /** RD efficiency barrier counters */
+  /** RD efficiency barrier counters; Shuffle uses redPots for reds potted this frame */
   redAttempts?: number
   redPots?: number
 }
@@ -110,6 +116,11 @@ export interface GameState {
   /** Trace: current frame number */
   frame?: number
   rd?: RdSettings
+  shuffle?: ShuffleSettings
+  /** Shuffle: player who won the current frame; the table waits for a new frame */
+  frameWinnerId?: string
+  /** Shuffle: index of the player who broke the current frame */
+  frameBreakerIndex?: number
   winnerId?: string
   createdAt: string
 }
