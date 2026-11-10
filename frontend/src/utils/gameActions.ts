@@ -379,9 +379,27 @@ export function hasToken(game: GameState, player: Player): boolean {
   return !!game.shuffle && (player.redPots ?? 0) >= game.shuffle.redsPerPlayer
 }
 
-/** Only reds are recorded; colours are respotted and score nothing */
+/**
+ * Reds count towards the player's share. Any colour may be potted in any pocket:
+ * it is respotted, scores nothing and the turn carries on.
+ */
 function shufflePot(game: GameState, ball: BallType): GameState {
-  if (ball !== 'red' || game.frameWinnerId || game.redsRemaining <= 0 || !game.shuffle) return game
+  if (game.frameWinnerId || !game.shuffle) return game
+  if (ball !== 'red') {
+    const next = cloneGame(game)
+    const player = next.players[next.currentPlayerIndex]
+    next.currentBreak += 1
+    addEvent(next, {
+      type: 'pot',
+      playerId: player.id,
+      ball,
+      points: 0,
+      description: `${player.name} potted ${ball}; it is respotted`,
+    })
+    delete next.pendingReplay
+    return next
+  }
+  if (game.redsRemaining <= 0) return game
   const next = cloneGame(game)
   const player = next.players[next.currentPlayerIndex]
   player.redPots = (player.redPots ?? 0) + 1

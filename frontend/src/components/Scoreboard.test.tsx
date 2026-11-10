@@ -81,9 +81,9 @@ describe('Scoreboard', () => {
 
   it('displays ball on, reds remaining, and current break', () => {
     renderScoreboard()
-    expect(screen.getByText(/Ball on:/i)).toBeInTheDocument()
-    expect(screen.getByText(/Reds remaining:/i)).toBeInTheDocument()
-    expect(screen.getByText(/Current break:/i)).toBeInTheDocument()
+    expect(screen.getByText('Ball on')).toBeInTheDocument()
+    expect(screen.getByText('Reds left')).toBeInTheDocument()
+    expect(screen.getByText('Break')).toBeInTheDocument()
     expect(screen.getByText('14')).toBeInTheDocument()
     expect(screen.getAllByText('4').length).toBeGreaterThanOrEqual(1)
   })
@@ -220,12 +220,12 @@ describe('Scoreboard – Shuffle', () => {
     ],
   }
 
-  it('shows only the red ball and red progress per player', () => {
+  it('offers every ball, colours in any pocket, and red progress per player', () => {
     render(
       <Scoreboard game={shuffleGame} canUndo={false} onPot={mockOnPot} onFoul={mockOnFoul} onChangeTurn={mockOnChangeTurn} onUndo={mockOnUndo} onReset={mockOnReset} />
     )
     expect(screen.getByTitle('Red potted')).toBeInTheDocument()
-    expect(screen.queryByTitle(/black/)).not.toBeInTheDocument()
+    expect(screen.getByTitle('black potted (any pocket)')).toBeEnabled()
     expect(screen.getByText('Reds 3/3 · token drawn')).toBeInTheDocument()
     expect(screen.getByText('Reds 1/3 · colour 0/2')).toBeInTheDocument()
   })
