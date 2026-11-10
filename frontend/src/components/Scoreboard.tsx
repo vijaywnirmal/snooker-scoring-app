@@ -239,7 +239,7 @@ export default function Scoreboard({
           </>
         )}
         <p>
-          <strong>{isShuffle ? 'Reds this visit' : 'Current break'}:</strong> {game.currentBreak}
+          <strong>{isShuffle ? 'Balls this visit' : 'Current break'}:</strong> {game.currentBreak}
         </p>
       </div>
 
@@ -298,17 +298,17 @@ export default function Scoreboard({
       <div className="ball-buttons">
         <h3>Ball potted</h3>
         <div className="ball-grid">
-          {(isShuffle ? (['red'] as BallType[]) : BALLS).map((ball) => (
+          {BALLS.map((ball) => (
             <button
               key={ball}
               type="button"
               className={`ball-btn ball-${ball}`}
               onClick={() => handlePot(ball)}
-              title={isShuffle ? 'Red potted' : `${ball} (${ballPoints(ball)} pts)`}
-              disabled={scoringLocked || (isShuffle && game.redsRemaining <= 0)}
+              title={isShuffle ? (ball === 'red' ? 'Red potted' : `${ball} potted (any pocket)`) : `${ball} (${ballPoints(ball)} pts)`}
+              disabled={scoringLocked || (isShuffle && ball === 'red' && game.redsRemaining <= 0)}
             >
               <span className="ball-label">{ball}</span>
-              <span className="ball-value">{isShuffle ? '+1' : ballPoints(ball)}</span>
+              <span className="ball-value">{isShuffle ? (ball === 'red' ? '+1' : 'any') : ballPoints(ball)}</span>
             </button>
           ))}
         </div>
@@ -536,7 +536,8 @@ export default function Scoreboard({
           <p className="trace-hint">
             After potting {game.shuffle!.redsPerPlayer} red{game.shuffle!.redsPerPlayer === 1 ? '' : 's'} a player draws
             a secret colour token. They win the frame by potting that colour in a corner pocket, never a centre pocket.
-            Each foul adds one more corner pot of their colour.
+            Each foul adds one more corner pot of their colour. Any other colour can be potted in any pocket; it is
+            respotted and scores nothing.
           </p>
         </div>
       )}

@@ -526,9 +526,22 @@ describe('Shuffle', () => {
     expect(g.players[0].score).toBe(0)
   })
 
-  it('ignores colour buttons', () => {
-    const g = shuffleGame()
-    expect(registerPot(g, 'black')).toBe(g)
+  it('lets any colour be potted: respotted, no points, turn carries on', () => {
+    const g = registerPot(shuffleGame(), 'black')
+    expect(g.events.at(-1)?.description).toBe('A potted black; it is respotted')
+    expect(g.players.map((p) => p.score)).toEqual([0, 0, 0])
+    expect(g.players[0].redPots).toBe(0)
+    expect(g.redsRemaining).toBe(15)
+    expect(g.currentPlayerIndex).toBe(0)
+    expect(g.currentBreak).toBe(1)
+  })
+
+  it('still allows colours once the reds are gone, but not after the frame is won', () => {
+    const noReds = { ...shuffleGame(), redsRemaining: 0 }
+    expect(registerPot(noReds, 'red')).toBe(noReds)
+    expect(registerPot(noReds, 'pink').events).toHaveLength(1)
+    const won = { ...shuffleGame(), frameWinnerId: 'x' }
+    expect(registerPot(won, 'pink')).toBe(won)
   })
 
   it('makes a fouler pot their colour in a corner once more for each foul', () => {
