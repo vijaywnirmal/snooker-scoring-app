@@ -98,34 +98,61 @@ body {
   border-color: #e2e8f0;
 }
 
-.first-player {
+.play-order {
+  list-style: none;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  counter-reset: play-order;
 }
 
-.radio-option {
+.play-order-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0.5rem 0.4rem 0.75rem;
   border-radius: 8px;
   background: #1e293b;
   border: 2px solid #334155;
-  cursor: pointer;
-  transition: all 0.2s;
+  counter-increment: play-order;
 }
 
-.radio-option:hover {
-  border-color: #475569;
+.play-order-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.radio-option input {
-  accent-color: #e2e8f0;
+.play-order-name::before {
+  content: counter(play-order) '. ';
+  color: #94a3b8;
 }
 
-.radio-option input:checked + span {
+.play-order-name small {
+  color: #94a3b8;
+}
+
+.play-order-moves {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.play-order-moves button {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border-radius: 6px;
+  border: 1px solid #475569;
+  background: transparent;
   color: #e2e8f0;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.play-order-moves button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .game-setup .errors {
@@ -768,8 +795,7 @@ body {
 }
 
 button,
-select,
-.radio-option {
+select {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   font-family: inherit;
@@ -879,7 +905,6 @@ button {
     flex-basis: 6.5rem;
   }
 
-  .radio-option,
   .shuffle-btn {
     min-height: 44px;
   }
@@ -1061,4 +1086,9 @@ button {
   .trace-buttons {
     gap: 0.4rem;
   }
+}
+
+/* Shuffle: the frame-winning action spans the row above the two new-frame options */
+.trace-buttons .shuffle-win-btn {
+  grid-column: 1 / -1;
 }

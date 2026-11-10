@@ -24,6 +24,7 @@ describe('GameSetup', () => {
     for (const name of ['Snooker', 'Doubles', 'Trace', 'RD']) {
       expect(screen.getByRole('button', { name: new RegExp('^' + name) })).toBeInTheDocument()
     }
+    expect(screen.getByRole('button', { name: /^Shuffle\s*Pot/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Start Game/i })).toBeInTheDocument()
   })
 
@@ -106,45 +107,53 @@ describe('GameSetup', () => {
     expect(alerts.some((a) => a.textContent?.includes('Player names must be unique'))).toBe(true)
   })
 
-  it('calls onGameStart with a new game state', async () => {
+  it('calls onGameStart with players in the chosen playing order', async () => {
     const user = userEvent.setup()
 
     renderGameSetup()
     const inputs = screen.getAllByRole('textbox')
     await user.type(inputs[0], 'Alice')
     await user.type(inputs[1], 'Bob')
-    await user.click(screen.getAllByRole('radio')[1])
+    await user.click(screen.getByRole('button', { name: 'Move Bob up' }))
     await user.click(screen.getByRole('button', { name: /Start Game/i }))
 
     expect(mockOnGameStart).toHaveBeenCalledTimes(1)
     const state = mockOnGameStart.mock.calls[0][0]
     expect(state.variant).toBe('snooker')
     expect(state.mode).toBe('singles')
-    expect(state.players.map((p: { name: string }) => p.name)).toEqual(['Alice', 'Bob'])
-    expect(state.currentPlayerIndex).toBe(1)
+    expect(state.players.map((p: { name: string }) => p.name)).toEqual(['Bob', 'Alice'])
+    expect(state.currentPlayerIndex).toBe(0)
     expect(state.redsRemaining).toBe(15)
     expect(state.status).toBe('active')
   })
 
-  it('shuffles who breaks first and still allows a manual choice', async () => {
+  it('shuffles the whole playing order and still allows manual moves', async () => {
     const user = userEvent.setup()
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.99)
+    // Fisher–Yates with random() = 0 turns A, B, C, D into B, C, D, A
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0)
     renderGameSetup()
-    const radios = screen.getAllByRole('radio')
+    await user.click(screen.getByRole('button', { name: /^Doubles/ }))
+    await user.click(screen.getByRole('button', { name: '4 players' }))
+    const inputs = screen.getAllByRole('textbox')
+    for (const [i, name] of ['A', 'B', 'C', 'D'].entries()) {
+      await user.type(inputs[i], name)
+    }
 
-    await user.click(screen.getByRole('button', { name: 'Shuffle' }))
-    expect(radios[1]).toBeChecked()
-    expect(screen.getByRole('status')).toHaveTextContent('Player 2 breaks')
+    await user.click(screen.getByRole('button', { name: 'Shuffle order' }))
+    expect(screen.getByRole('status')).toHaveTextContent('B → C → D → A')
 
-    await user.click(radios[0])
-    expect(radios[0]).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Move A up' }))
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Start Game/i }))
+
+    const state = mockOnGameStart.mock.calls[0][0]
+    expect(state.players.map((p: { name: string }) => p.name)).toEqual(['B', 'C', 'A', 'D'])
     random.mockRestore()
   })
 
-  it('shuffles the breaker and starts the game in one step', async () => {
+  it('shuffles the order and starts the game in one step', async () => {
     const user = userEvent.setup()
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.99)
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0)
     renderGameSetup()
     const inputs = screen.getAllByRole('textbox')
     await user.type(inputs[0], 'Alice')
@@ -152,7 +161,9 @@ describe('GameSetup', () => {
     await user.click(screen.getByRole('button', { name: 'Shuffle & Start' }))
 
     expect(mockOnGameStart).toHaveBeenCalledTimes(1)
-    expect(mockOnGameStart.mock.calls[0][0].currentPlayerIndex).toBe(1)
+    const state = mockOnGameStart.mock.calls[0][0]
+    expect(state.players.map((p: { name: string }) => p.name)).toEqual(['Bob', 'Alice'])
+    expect(state.currentPlayerIndex).toBe(0)
     random.mockRestore()
   })
 
@@ -164,10 +175,58 @@ describe('GameSetup', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Player 1 name is required')
   })
 
-  it('shows first to break radio options', () => {
+  it('keeps team members together when the order is shuffled', async () => {
+    const user = userEvent.setup()
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0)
     renderGameSetup()
-    expect(screen.getByText('First to Break')).toBeInTheDocument()
-    const radios = screen.getAllByRole('radio')
-    expect(radios.length).toBeGreaterThanOrEqual(2)
+    await user.click(screen.getByRole('button', { name: /^Doubles/ }))
+    await user.click(screen.getByRole('button', { name: '4 players' }))
+    await user.click(screen.getByRole('button', { name: 'Teams' }))
+    const inputs = screen.getAllByRole('textbox')
+    for (const [i, name] of ['A', 'B', 'C', 'D'].entries()) {
+      await user.type(inputs[i], name)
+    }
+    await user.click(screen.getByRole('button', { name: 'Shuffle & Start' }))
+
+    const state = mockOnGameStart.mock.calls[0][0]
+    const teamOf = (name: string) => state.players.find((p: { name: string }) => p.name === name).teamId
+    expect(teamOf('A')).toBe(teamOf('B'))
+    expect(teamOf('C')).toBe(teamOf('D'))
+    expect(teamOf('A')).not.toBe(teamOf('C'))
+    random.mockRestore()
+  })
+
+  it('starts a Shuffle game with reds shared between the players', async () => {
+    const user = userEvent.setup()
+    renderGameSetup()
+    await user.click(screen.getByRole('button', { name: /^Shuffle\s*Pot/ }))
+    await user.click(screen.getByRole('button', { name: '3 players' }))
+    expect(screen.getByLabelText('Reds per player')).toHaveValue(4)
+    await user.click(screen.getByRole('button', { name: '4 players' }))
+    expect(screen.getByLabelText('Reds per player')).toHaveValue(3)
+    const inputs = screen.getAllByRole('textbox')
+    for (const [i, name] of ['A', 'B', 'C', 'D'].entries()) {
+      await user.type(inputs[i], name)
+    }
+    await user.click(screen.getByRole('button', { name: /Start Game/i }))
+
+    const state = mockOnGameStart.mock.calls[0][0]
+    expect(state.variant).toBe('shuffle')
+    expect(state.shuffle).toEqual({ redsPerPlayer: 3 })
+    expect(state.frame).toBe(1)
+  })
+
+  it('rejects more reds per player than the rack holds', async () => {
+    const user = userEvent.setup()
+    renderGameSetup()
+    await user.click(screen.getByRole('button', { name: /^Shuffle\s*Pot/ }))
+    const inputs = screen.getAllByRole('textbox')
+    await user.type(inputs[0], 'A')
+    await user.type(inputs[1], 'B')
+    await user.clear(screen.getByLabelText('Reds per player'))
+    await user.type(screen.getByLabelText('Reds per player'), '8')
+    await user.click(screen.getByRole('button', { name: /Start Game/i }))
+    expect(mockOnGameStart).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('Reds per player must be a whole number from 1 to 7')
   })
 })

@@ -5,7 +5,13 @@
 
 import { useState } from 'react'
 import type { GameState, GameVariant, RdSettings } from '../types/game'
-import { createInitialGameState, DEFAULT_RD_SETTINGS } from '../utils/gameState'
+import {
+  createInitialGameState,
+  DEFAULT_RD_SETTINGS,
+  defaultRedsPerPlayer,
+  maxRedsPerPlayer,
+  shuffled,
+} from '../utils/gameState'
 import { VARIANTS, getVariant } from '../variants'
 
 const MIN_NAME_LENGTH = 1
@@ -21,6 +27,10 @@ function defaultTeams(numPlayers: number, numTeams: number): number[] {
   return Array.from({ length: numPlayers }, (_, i) => Math.floor(i / perTeam))
 }
 
+function identityOrder(n: number): number[] {
+  return Array.from({ length: n }, (_, i) => i)
+}
+
 function maxTeams(numPlayers: number): number {
   return Math.max(2, Math.floor(numPlayers / 2))
 }
@@ -33,8 +43,10 @@ export default function GameSetup({ onGameStart }: GameSetupProps) {
   const [numTeams, setNumTeams] = useState(2)
   const [teamOf, setTeamOf] = useState<number[]>(defaultTeams(2, 2))
   const [rd, setRd] = useState<RdSettings>(DEFAULT_RD_SETTINGS)
-  const [firstPlayerIndex, setFirstPlayerIndex] = useState(0)
-  const [shuffled, setShuffled] = useState(false)
+  const [redsPerPlayer, setRedsPerPlayer] = useState(defaultRedsPerPlayer(2))
+  /** Playing order as indexes into playerNames; the first player breaks */
+  const [order, setOrder] = useState<number[]>(identityOrder(2))
+  const [orderShuffled, setOrderShuffled] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
 
   const variant = getVariant(variantId)
@@ -51,8 +63,9 @@ export default function GameSetup({ onGameStart }: GameSetupProps) {
     setPlayerNames((prev) => Array.from({ length: n }, (_, i) => prev[i] ?? ''))
     setNumTeams(nextTeams)
     setTeamOf(defaultTeams(n, nextTeams))
-    setFirstPlayerIndex((prev) => (prev < n ? prev : 0))
-    setShuffled(false)
+    setOrder(identityOrder(n))
+    setOrderShuffled(false)
+    setRedsPerPlayer(defaultRedsPerPlayer(n))
     setErrors([])
   }
 
@@ -68,22 +81,29 @@ export default function GameSetup({ onGameStart }: GameSetupProps) {
     setPlayerNames(next)
   }
 
-  const chooseFirstPlayer = (index: number) => {
-    setFirstPlayerIndex(index)
-    setShuffled(false)
+  const nameAt = (index: number) => playerNames[index]?.trim() || `Player ${index + 1}`
+
+  /** Move a player one place earlier (-1) or later (+1) in the playing order */
+  const movePlayer = (position: number, step: -1 | 1) => {
+    const target = position + step
+    if (target < 0 || target >= order.length) return
+    const next = [...order]
+    ;[next[position], next[target]] = [next[target], next[position]]
+    setOrder(next)
+    setOrderShuffled(false)
   }
 
-  /** Pick who breaks at random; every player has the same chance */
-  const shuffleFirstPlayer = (): number => {
-    const index = Math.floor(Math.random() * numPlayers)
-    setFirstPlayerIndex(index)
-    setShuffled(true)
-    return index
+  /** Randomise the whole playing order, not just who breaks */
+  const shuffleOrder = (): number[] => {
+    const next = shuffled(order)
+    setOrder(next)
+    setOrderShuffled(true)
+    return next
   }
 
   const handleShuffleAndStart = () => {
     if (!validate()) return
-    handleStartGame(shuffleFirstPlayer())
+    handleStartGame(shuffleOrder())
   }
 
   const updateTeam = (index: number, team: number) => {
@@ -128,18 +148,28 @@ export default function GameSetup({ onGameStart }: GameSetupProps) {
       if (rd.minPots > rd.minAttempts) errs.push('Minimum red pots cannot be more than minimum attempts')
     }
 
+    if (variantId === 'shuffle') {
+      const max = maxRedsPerPlayer(numPlayers)
+      if (!Number.isInteger(redsPerPlayer) || redsPerPlayer < 1 || redsPerPlayer > max) {
+        errs.push(`Reds per player must be a whole number from 1 to ${max}`)
+      }
+    }
+
     setErrors(errs)
     return errs.length === 0
   }
 
-  const handleStartGame = (breaker = firstPlayerIndex) => {
+  const handleStartGame = (playOrder = order) => {
     if (!validate()) return
 
-    const names = playerNames.slice(0, numPlayers).map((n) => n.trim())
+    // Players are stored in playing order, so the first one breaks
+    const names = playOrder.map((i) => playerNames[i].trim())
+    const teams = teamsOn ? playOrder.map((i) => teamOf[i]) : undefined
     onGameStart(
-      createInitialGameState(names, teamsOn ? teamOf : undefined, breaker, {
+      createInitialGameState(names, teams, 0, {
         variant: variantId,
         rd: variantId === 'rd' ? rd : undefined,
+        shuffle: variantId === 'shuffle' ? { redsPerPlayer } : undefined,
       })
     )
   }
@@ -281,6 +311,31 @@ export default function GameSetup({ onGameStart }: GameSetupProps) {
         </section>
       )}
 
+      {variantId === 'shuffle' && (
+        <section className="setup-section">
+          <h2>Shuffle Settings</h2>
+          <div className="settings-grid">
+            <div className="input-group">
+              <label htmlFor="shuffle-reds">Reds per player</label>
+              <input
+                id="shuffle-reds"
+                type="number"
+                min={1}
+                max={maxRedsPerPlayer(numPlayers)}
+                value={redsPerPlayer}
+                onChange={(e) => setRedsPerPlayer(Number(e.target.value))}
+              />
+            </div>
+          </div>
+          <p className="setup-hint">
+            {numPlayers} × {redsPerPlayer} = {numPlayers * redsPerPlayer} reds to pot,{' '}
+            {Math.max(0, 15 - numPlayers * redsPerPlayer)} left on the table. After potting their reds a
+            player draws a secret colour token (2 to 7) and wins the frame by potting that colour in a corner pocket. It
+            can never go in a centre pocket. Each foul means potting their colour in a corner one more time.
+          </p>
+        </section>
+      )}
+
       <section className="setup-section">
         <h2>Player Names</h2>
         <div className="player-inputs">
@@ -316,26 +371,41 @@ export default function GameSetup({ onGameStart }: GameSetupProps) {
       </section>
 
       <section className="setup-section">
-        <h2>First to Break</h2>
-        <div className="first-player">
-          {Array.from({ length: numPlayers }).map((_, i) => (
-            <label key={i} className="radio-option">
-              <input
-                type="radio"
-                name="firstPlayer"
-                checked={firstPlayerIndex === i}
-                onChange={() => chooseFirstPlayer(i)}
-              />
-              <span>{playerNames[i]?.trim() || `Player ${i + 1}`}</span>
-            </label>
+        <h2>Playing Order</h2>
+        <ol className="play-order">
+          {order.map((playerIndex, position) => (
+            <li key={playerIndex} className="play-order-row">
+              <span className="play-order-name">
+                {nameAt(playerIndex)}
+                {position === 0 && <small> · breaks</small>}
+              </span>
+              <span className="play-order-moves">
+                <button
+                  type="button"
+                  aria-label={`Move ${nameAt(playerIndex)} up`}
+                  disabled={position === 0}
+                  onClick={() => movePlayer(position, -1)}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Move ${nameAt(playerIndex)} down`}
+                  disabled={position === order.length - 1}
+                  onClick={() => movePlayer(position, 1)}
+                >
+                  ↓
+                </button>
+              </span>
+            </li>
           ))}
-          <button type="button" className="shuffle-btn" onClick={() => shuffleFirstPlayer()}>
-            Shuffle
-          </button>
-        </div>
-        {shuffled && (
+        </ol>
+        <button type="button" className="shuffle-btn" onClick={() => shuffleOrder()}>
+          Shuffle order
+        </button>
+        {orderShuffled && (
           <p className="setup-hint" role="status">
-            Shuffled: {playerNames[firstPlayerIndex]?.trim() || `Player ${firstPlayerIndex + 1}`} breaks.
+            Shuffled: {order.map(nameAt).join(' → ')}
           </p>
         )}
       </section>
