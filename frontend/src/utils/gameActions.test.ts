@@ -27,6 +27,7 @@ import {
   shuffleNewFrame,
   sitOut,
   potOwnColour,
+  recordFrameWinner,
 } from './gameActions'
 import { createInitialGameState, defaultRedsPerPlayer, maxRedsPerPlayer, shuffled } from './gameState'
 
@@ -607,5 +608,42 @@ describe('Shuffle', () => {
   it('shuffles with every element kept', () => {
     const out = shuffled([1, 2, 3, 4, 5])
     expect([...out].sort()).toEqual([1, 2, 3, 4, 5])
+  })
+})
+
+describe('Shuffle frame winners', () => {
+  function game(): GameState {
+    return createInitialGameState(['A', 'B', 'C'], undefined, 0, { variant: 'shuffle' })
+  }
+
+  it('lets the score keeper record any player as the frame winner', () => {
+    let g = recordFrameWinner(game(), game().players[0].id) // unknown id from a different game
+    expect(g.frameWinnerId).toBeUndefined()
+
+    g = game()
+    const b = g.players[1].id
+    g = recordFrameWinner(g, b)
+    expect(g.frameWinnerId).toBe(b)
+    expect(g.players.map((p) => p.score)).toEqual([0, 1, 0])
+    expect(g.frameResults).toEqual([{ frame: 1, winnerId: b }])
+    expect(recordFrameWinner(g, b)).toBe(g) // one winner per frame
+  })
+
+  it('keeps a running count and list across frames', () => {
+    let g = game()
+    const [a, b] = g.players.map((p) => p.id)
+    g = newFrame(recordFrameWinner(g, a))
+    g = newFrame(recordFrameWinner(g, b))
+    g = recordFrameWinner(g, a)
+    expect(g.players.find((p) => p.id === a)?.score).toBe(2)
+    expect(g.players.find((p) => p.id === b)?.score).toBe(1)
+    expect(g.frameResults?.map((r) => [r.frame, r.winnerId])).toEqual([[1, a], [2, b], [3, a]])
+  })
+
+  it('records the result when the winning colour pot is entered too', () => {
+    let g = createInitialGameState(['A', 'B'], undefined, 0, { variant: 'shuffle', shuffle: { redsPerPlayer: 1 } })
+    g = registerPot(g, 'red')
+    g = potOwnColour(g, g.players[0].id)
+    expect(g.frameResults).toEqual([{ frame: 1, winnerId: g.players[0].id }])
   })
 })

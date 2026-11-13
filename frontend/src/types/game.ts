@@ -122,6 +122,8 @@ export interface GameState {
   shuffle?: ShuffleSettings
   /** Shuffle: player who won the current frame; the table waits for a new frame */
   frameWinnerId?: string
+  /** Shuffle: who won each finished frame, oldest first */
+  frameResults?: { frame: number; winnerId: string }[]
   /** Shuffle: index of the player who broke the current frame */
   frameBreakerIndex?: number
   winnerId?: string

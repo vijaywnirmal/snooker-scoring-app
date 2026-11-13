@@ -13,6 +13,7 @@ import {
   quitGame,
   shuffleNewFrame,
   potOwnColour,
+  recordFrameWinner,
 } from './utils/gameActions'
 import { loadSavedGame, saveGame, MAX_HISTORY, type SavedGame } from './services/gameStorage'
 
@@ -68,6 +69,10 @@ function App() {
     applyAction((g) => potOwnColour(g, playerId))
   }
 
+  const handleRecordWinner = (playerId: string) => {
+    applyAction((g) => recordFrameWinner(g, playerId))
+  }
+
   const handleSitOut = (sitterId?: string) => {
     applyAction((g) => sitOut(g, sitterId))
   }
@@ -105,6 +110,7 @@ function App() {
           onSitOut={handleSitOut}
           onQuit={handleQuit}
           onColourPot={handleColourPot}
+          onRecordWinner={handleRecordWinner}
         />
       ) : (
         <GameSetup onGameStart={handleGameStart} />
