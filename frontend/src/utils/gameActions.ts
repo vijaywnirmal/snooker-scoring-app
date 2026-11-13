@@ -468,16 +468,31 @@ export function potOwnColour(game: GameState, playerId: string): GameState {
     return next
   }
 
+  awardFrame(next, player, `${player.name} potted their colour in a corner pocket and wins frame ${next.frame ?? 1}`)
+  return next
+}
+
+/** Give the frame to a player: one more frame won, and the table waits for a new frame (mutates the clone) */
+function awardFrame(next: GameState, player: Player, description: string): void {
+  const frame = next.frame ?? 1
   player.score += 1
   next.frameWinnerId = player.id
+  next.frameResults = [...(next.frameResults ?? []), { frame, winnerId: player.id }]
   next.currentBreak = 0
-  addEvent(next, {
-    type: 'frame',
-    playerId: player.id,
-    points: 1,
-    description: `${player.name} potted their colour in a corner pocket and wins frame ${next.frame ?? 1}`,
-  })
+  addEvent(next, { type: 'frame', playerId: player.id, points: 1, description })
   delete next.pendingReplay
+}
+
+/**
+ * The score keeper records who won the frame directly, e.g. when reds and colours weren't tracked.
+ * Any player can be chosen; the winner has shown their token at the table.
+ */
+export function recordFrameWinner(game: GameState, playerId: string): GameState {
+  if (game.variant !== 'shuffle' || game.frameWinnerId) return game
+  const next = cloneGame(game)
+  const player = next.players.find((p) => p.id === playerId)
+  if (!player) return game
+  awardFrame(next, player, `${player.name} wins frame ${next.frame ?? 1}`)
   return next
 }
 

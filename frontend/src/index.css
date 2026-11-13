@@ -901,7 +901,6 @@ button:disabled {
 }
 
 .trace-buttons .shuffle-win-btn {
-  grid-column: 1 / -1;
   border-color: var(--accent);
   color: var(--accent);
   background: rgba(242, 179, 27, 0.08);
@@ -1207,4 +1206,67 @@ button:disabled {
   * {
     transition: none !important;
   }
+}
+
+/* Shuffle: frames won under each score, and a running list of frame winners */
+.score-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+}
+
+.score-unit {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.scores--duel .player-score:last-child .score-block {
+  align-items: flex-start;
+}
+
+.frame-results {
+  margin-top: 1rem;
+}
+
+.frame-results h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.frame-results ol {
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.frame-results li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.frame-results li:last-child {
+  border-bottom: 0;
+}
+
+.frame-no {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }

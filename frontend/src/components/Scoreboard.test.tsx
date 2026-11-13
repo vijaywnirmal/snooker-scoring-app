@@ -264,3 +264,43 @@ describe('Scoreboard – Shuffle', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Alice wins frame 1')
   })
 })
+
+describe('Scoreboard – Shuffle frame winners', () => {
+  const game: GameState = {
+    ...mockGame,
+    variant: 'shuffle',
+    shuffle: { redsPerPlayer: 3 },
+    frame: 3,
+    ballOn: undefined,
+    events: [],
+    players: [
+      { id: 'p1', name: 'Alice', score: 2, redPots: 0 },
+      { id: 'p2', name: 'Bob', score: 0, redPots: 0 },
+    ],
+    frameResults: [
+      { frame: 1, winnerId: 'p1' },
+      { frame: 2, winnerId: 'p1' },
+    ],
+  }
+
+  it('records any player as the winner, even without a token', async () => {
+    const user = userEvent.setup()
+    const onRecordWinner = vi.fn()
+    render(
+      <Scoreboard game={game} canUndo={false} onPot={mockOnPot} onFoul={mockOnFoul} onChangeTurn={mockOnChangeTurn} onUndo={mockOnUndo} onReset={mockOnReset} onRecordWinner={onRecordWinner} />
+    )
+    await user.click(screen.getByRole('button', { name: 'Record Frame Winner' }))
+    expect(screen.getByText('Who won frame 3?')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Bob won' }))
+    expect(onRecordWinner).toHaveBeenCalledWith('p2')
+  })
+
+  it('shows frames won per player and the frame results', () => {
+    render(
+      <Scoreboard game={game} canUndo={false} onPot={mockOnPot} onFoul={mockOnFoul} onChangeTurn={mockOnChangeTurn} onUndo={mockOnUndo} onReset={mockOnReset} />
+    )
+    expect(screen.getAllByText('Frames')).toHaveLength(2)
+    expect(screen.getByText('Frame results')).toBeInTheDocument()
+    expect(screen.getByText('Frame 2')).toBeInTheDocument()
+  })
+})

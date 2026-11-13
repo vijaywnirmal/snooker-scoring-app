@@ -30,6 +30,8 @@ interface ScoreboardProps {
   onNewFrame?: (reshuffle?: boolean) => void
   /** Shuffle: a token holder potted their own colour in a corner pocket */
   onColourPot?: (playerId: string) => void
+  /** Shuffle: the score keeper records who won the frame */
+  onRecordWinner?: (playerId: string) => void
   /** Trace: the highest scorer sits out; sitterId settles a tie */
   onSitOut?: (sitterId?: string) => void
   /** Trace: one of the last two quits and loses */
@@ -62,11 +64,13 @@ export default function Scoreboard({
   onSitOut,
   onQuit,
   onColourPot,
+  onRecordWinner,
 }: ScoreboardProps) {
   const [showFoulModal, setShowFoulModal] = useState(false)
   const [showSitOutModal, setShowSitOutModal] = useState(false)
   const [showQuitModal, setShowQuitModal] = useState(false)
   const [showColourModal, setShowColourModal] = useState(false)
+  const [showWinnerModal, setShowWinnerModal] = useState(false)
   const currentPlayer = game.players[game.currentPlayerIndex]
   const lastEvent = game.events[game.events.length - 1]
   const variant = getVariant(game.variant)
@@ -119,6 +123,12 @@ export default function Scoreboard({
     setShowColourModal(false)
     onClearError?.()
     onColourPot?.(playerId)
+  }
+
+  const handleRecordWinner = (playerId: string) => {
+    setShowWinnerModal(false)
+    onClearError?.()
+    onRecordWinner?.(playerId)
   }
 
   const handleSitOut = (sitterId?: string) => {
@@ -202,7 +212,14 @@ export default function Scoreboard({
                 <span className="name">{p.name}</span>
                 {status && <span className="player-status">{status}</span>}
               </span>
-              <span className="score">{p.score}</span>
+              {isShuffle ? (
+                <span className="score-block">
+                  <span className="score">{p.score}</span>
+                  <span className="score-unit">{p.score === 1 ? 'Frame' : 'Frames'}</span>
+                </span>
+              ) : (
+                <span className="score">{p.score}</span>
+              )}
             </div>
           )
         })}
@@ -423,6 +440,25 @@ export default function Scoreboard({
         </div>
       )}
 
+      {showWinnerModal && (
+        <div className="modal-overlay" onClick={() => setShowWinnerModal(false)}>
+          <div className="modal frame-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Who won frame {game.frame ?? 1}?</h3>
+            <p>The winner shows their token to the table. They get one more frame won.</p>
+            <div className="modal-choices">
+              {game.players.map((p) => (
+                <button key={p.id} type="button" className="modal-confirm" onClick={() => handleRecordWinner(p.id)}>
+                  {p.name} won
+                </button>
+              ))}
+            </div>
+            <button type="button" className="modal-cancel" onClick={() => setShowWinnerModal(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {showQuitModal && (
         <div className="modal-overlay" onClick={() => setShowQuitModal(false)}>
           <div className="modal frame-modal" onClick={(e) => e.stopPropagation()}>
@@ -535,6 +571,14 @@ export default function Scoreboard({
             </button>
             <button
               type="button"
+              className="end-frame-btn shuffle-record-btn"
+              onClick={() => setShowWinnerModal(true)}
+              disabled={locked || !!frameWinner}
+            >
+              Record Frame Winner
+            </button>
+            <button
+              type="button"
               className="end-frame-btn"
               onClick={() => handleControlClick(() => onNewFrame?.(false))}
               disabled={locked}
@@ -554,8 +598,21 @@ export default function Scoreboard({
             After potting {game.shuffle!.redsPerPlayer} red{game.shuffle!.redsPerPlayer === 1 ? '' : 's'} a player draws
             a secret colour token. They win the frame by potting that colour in a corner pocket, never a centre pocket.
             Each foul adds one more corner pot of their colour. Any other colour can be potted in any pocket; it is
-            respotted and scores nothing.
+            respotted and scores nothing. Use Record Frame Winner to give the frame to anyone directly.
           </p>
+          {(game.frameResults?.length ?? 0) > 0 && (
+            <div className="frame-results">
+              <h3>Frame results</h3>
+              <ol>
+                {game.frameResults!.map((r) => (
+                  <li key={r.frame}>
+                    <span className="frame-no">Frame {r.frame}</span>
+                    <span className="frame-winner">{game.players.find((p) => p.id === r.winnerId)?.name}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
         </div>
       )}
 
